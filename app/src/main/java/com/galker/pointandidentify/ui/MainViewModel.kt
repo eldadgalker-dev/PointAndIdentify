@@ -1,0 +1,234 @@
+// Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
+// This software is released under the BSD 3-Clause License.
+// See the LICENSE.txt file in the project root for full license information.
+// Version 1.4
+package com.galker.pointandidentify.ui
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.galker.pointandidentify.PointApp
+import com.galker.pointandidentify.config.AppConfig
+import com.galker.pointandidentify.data.dem.DemTileRepository
+import com.galker.pointandidentify.domain.LineOfSightCalculator
+import com.galker.pointandidentify.domain.TargetEvaluation
+import com.galker.pointandidentify.domain.TargetSelector
+import com.galker.pointandidentify.domain.TerrainSource
+import com.galker.pointandidentify.geo.GeoMath
+import com.galker.pointandidentify.location.LocationProvider
+import com.galker.pointandidentify.location.ObserverFix
+import com.galker.pointandidentify.sensors.OrientationProvider
+import com.galker.pointandidentify.update.RemoteVersion
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+
+enum class Phase { INITIALIZING, WAITING_LOCATION, READY }
+
+data class UiState(
+    val phase: Phase = Phase.INITIALIZING,
+    val azimuthDeg: Double? = null,
+    val compassCalibrated: Boolean = true,
+    val cameraElevationDeg: Double? = null,
+    val target: TargetEvaluation? = null,
+    val fix: ObserverFix? = null,
+    val observerEyeAltM: Double? = null,
+    val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
+    val targetsCount: Int = 0,
+    val offline: Boolean = false
+)
+
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data class UpToDate(val versionName: String) : UpdateState
+    data class Available(val remote: RemoteVersion) : UpdateState
+    data class Downloading(val percent: Int) : UpdateState
+    data class ReadyToInstall(val apk: File) : UpdateState
+    data object VerifyFailed : UpdateState
+    data object Failed : UpdateState
+}
+
+/**
+ * Orchestration: location -> (tile fetch, LOS for all nearby targets) once per significant move;
+ * orientation -> cheap target selection on cached LOS results, throttled for the UI.
+ */
+@OptIn(FlowPreview::class)
+class MainViewModel(app: Application) : AndroidViewModel(app) {
+
+    private val services = app as PointApp
+    private val dem = services.demRepository
+    private val targets = services.targetRepository
+    private val manifest = services.manifestRepository
+    private val updater = services.updateManager
+
+    val orientationProvider = OrientationProvider(app)
+    private val locationProvider = LocationProvider(app)
+    private val losCalculator = LineOfSightCalculator(TerrainSource { lat, lon -> dem.elevationM(lat, lon) })
+
+    private val evaluations = MutableStateFlow<List<TargetEvaluation>>(emptyList())
+
+    private val _ui = MutableStateFlow(UiState())
+    val ui: StateFlow<UiState> = _ui
+
+    private val _update = MutableStateFlow<UpdateState>(UpdateState.Idle)
+    val update: StateFlow<UpdateState> = _update
+
+    @Volatile
+    var hfovDeg: Double = AppConfig.DEFAULT_HFOV_DEG
+
+    private var lastLosFix: ObserverFix? = null
+    private var lastFetchFix: ObserverFix? = null
+    private var losJob: Job? = null
+    private var fetchJob: Job? = null
+    private var dataReady = false
+
+    init {
+        viewModelScope.launch {
+            targets.ensureSeeded() // seeding completes before the first query: no empty-list race
+            _ui.value = _ui.value.copy(phase = Phase.WAITING_LOCATION, targetsCount = targets.totalCount)
+            manifest.refresh()
+            if (targets.updateFromRemoteIfNewer()) forceRecompute()
+            _ui.value = _ui.value.copy(targetsCount = targets.totalCount, offline = manifest.offline.value)
+            dataReady = true
+            locationProvider.fix.value?.let { onFix(it) }
+        }
+
+        viewModelScope.launch {
+            locationProvider.fix.filterNotNull().collect { onFix(it) }
+        }
+
+        viewModelScope.launch {
+            dem.status.collect { s ->
+                _ui.value = _ui.value.copy(tiles = s)
+            }
+        }
+
+        viewModelScope.launch {
+            combine(orientationProvider.orientation.filterNotNull(), evaluations) { o, evals -> o to evals }
+                .sample(AppConfig.UI_UPDATE_INTERVAL_MS)
+                .collect { (o, evals) ->
+                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, hfovDeg)
+                    _ui.value = _ui.value.copy(
+                        azimuthDeg = o.trueAzimuthDeg,
+                        compassCalibrated = o.calibrated,
+                        cameraElevationDeg = o.cameraElevationDeg,
+                        target = selection.best
+                    )
+                }
+        }
+    }
+
+    fun startLocation() = locationProvider.start()
+    fun stopLocation() = locationProvider.stop()
+
+    private fun onFix(fix: ObserverFix) {
+        _ui.value = _ui.value.copy(fix = fix, phase = if (dataReady) Phase.READY else _ui.value.phase)
+        orientationProvider.updateDeclination(fix.lat, fix.lon, fix.mslAltitudeM ?: 0.0)
+        if (!dataReady) return
+
+        val needFetch = lastFetchFix?.let { moved(it, fix) > AppConfig.REFETCH_DISTANCE_M } ?: true
+        if (needFetch && fetchJob?.isActive != true) {
+            lastFetchFix = fix
+            fetchJob = viewModelScope.launch {
+                dem.ensureTilesAround(fix.lat, fix.lon, AppConfig.FETCH_RADIUS_M)
+                _ui.value = _ui.value.copy(offline = manifest.offline.value)
+                forceRecompute() // terrain changed: previous LOS results may be UNKNOWN
+            }
+        }
+
+        val needLos = lastLosFix?.let { moved(it, fix) > AppConfig.LOS_RECALC_DISTANCE_M } ?: true
+        if (needLos) recompute(fix)
+    }
+
+    private fun forceRecompute() {
+        lastLosFix = null
+        locationProvider.fix.value?.let { recompute(it) }
+    }
+
+    private fun recompute(fix: ObserverFix) {
+        lastLosFix = fix
+        losJob?.cancel()
+        losJob = viewModelScope.launch {
+            val result = withContext(Dispatchers.Default) {
+                val eyeAlt = observerEyeAltitude(fix)
+                val nearby = targets.within(fix.lat, fix.lon, AppConfig.MIN_TARGET_RANGE_M, AppConfig.MAX_TARGET_RANGE_M)
+                // At 50 km a full pass can take noticeable time; cancellation is checked per target
+                // so a newer fix replaces a stale computation immediately.
+                val evals = if (eyeAlt == null) {
+                    emptyList()
+                } else {
+                    nearby.map {
+                        ensureActive()
+                        losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, it)
+                    }
+                }
+                eyeAlt to evals
+            }
+            _ui.value = _ui.value.copy(observerEyeAltM = result.first)
+            evaluations.value = result.second
+        }
+    }
+
+    /** DEM ground + eye height is preferred: GPS vertical error is typically several times larger. */
+    private fun observerEyeAltitude(fix: ObserverFix): Double? =
+        dem.elevationM(fix.lat, fix.lon)?.let { it + AppConfig.EYE_HEIGHT_M } ?: fix.mslAltitudeM
+
+    private fun moved(a: ObserverFix, b: ObserverFix) = GeoMath.distanceM(a.lat, a.lon, b.lat, b.lon)
+
+    // ===== Self-update =====
+
+    fun checkForUpdate() {
+        val current = _update.value
+        // ReadyToInstall is handled by the Activity directly (install retry), never re-checked here.
+        if (current is UpdateState.Checking || current is UpdateState.Downloading) return
+        if (current is UpdateState.ReadyToInstall && current.apk.exists()) return
+        _update.value = UpdateState.Checking
+        viewModelScope.launch {
+            _update.value = try {
+                updater.checkForUpdate()?.let { UpdateState.Available(it) }
+                    ?: UpdateState.UpToDate(updater.installedVersionName)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                UpdateState.Failed
+            }
+        }
+    }
+
+    fun downloadUpdate(remote: RemoteVersion) {
+        _update.value = UpdateState.Downloading(0)
+        viewModelScope.launch {
+            _update.value = try {
+                val apk = updater.download(remote) { pct -> _update.value = UpdateState.Downloading(pct.coerceAtLeast(0)) }
+                UpdateState.ReadyToInstall(apk)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: SecurityException) {
+                UpdateState.VerifyFailed
+            } catch (e: Exception) {
+                UpdateState.Failed
+            }
+        }
+    }
+
+    fun resetUpdateState() {
+        if (_update.value !is UpdateState.ReadyToInstall) _update.value = UpdateState.Idle
+    }
+
+    override fun onCleared() {
+        locationProvider.stop()
+        orientationProvider.stop()
+        super.onCleared()
+    }
+}

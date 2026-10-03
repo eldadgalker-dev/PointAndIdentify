@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "items": [
+    {"name": "כפר תבור", "kind": "settlement", "lat": 32.6865, "lon": 35.4208, "alt": null, "h": null},
+    {"name": "שדמות דבורה", "kind": "settlement", "lat": 32.6974, "lon": 35.4385, "alt": null, "h": null},
+    {"name": "עפולה", "kind": "settlement", "lat": 32.6074, "lon": 35.2891, "alt": null, "h": null},
+    {"name": "נצרת", "kind": "settlement", "lat": 32.7019, "lon": 35.2974, "alt": null, "h": null},
+    {"name": "טבריה", "kind": "settlement", "lat": 32.7922, "lon": 35.5312, "alt": null, "h": null},
+    {"name": "מגדל העמק", "kind": "settlement", "lat": 32.6738, "lon": 35.2407, "alt": null, "h": null},
+    {"name": "הר תבור", "kind": "peak", "lat": 32.6864, "lon": 35.3905, "alt": 575.0, "h": null}
+  ]
+}

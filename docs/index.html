@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
+  This software is released under the BSD 3-Clause License.
+  See the LICENSE.txt file in the project root for full license information.
+-->
+<!-- Version 2.3 -->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PointAndIdentify – התקנה, עזרה ומעבדת ניסוי</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Parameters: design tokens (topographic map palette) ===== */
+  :root {
+    --paper: #F3F5F2; --ink: #1E292D; --muted: #55636A; --contour: #9A7B4F;
+    --water: #2D6A8A; --visible: #2F7A36; --hidden: #C0392B; --rule: #CBD3CE; --surface: #FFFFFF;
+    --measure: 66ch; --wide: 1080px;
+    --font-body: "Assistant", "Segoe UI", Arial, sans-serif;
+    --font-head: "Frank Ruhl Libre", "David", "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141B1E; --ink: #E4EAE6; --muted: #9AA8A3; --contour: #C29F6E;
+      --water: #6FA9C8; --visible: #6CC274; --hidden: #F07462; --rule: #2C383C; --surface: #1B2427;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141B1E; --ink: #E4EAE6; --muted: #9AA8A3; --contour: #C29F6E;
+    --water: #6FA9C8; --visible: #6CC274; --hidden: #F07462; --rule: #2C383C; --surface: #1B2427;
+  }
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body);
+         font-size: 1.0625rem; line-height: 1.6; text-align: right; }
+  main { max-width: var(--measure); margin: 0 auto; padding: 0 1.25rem 4rem; }
+  h1, h2, h3 { font-family: var(--font-head); line-height: 1.2; margin: 0; }
+  h2 { font-size: 1.75rem; margin: 3rem 0 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--rule); }
+  h3 { font-size: 1.2rem; margin: 1.75rem 0 .5rem; }
+  p { margin: 0 0 1rem; }
+  a { color: var(--water); }
+  a:focus-visible, button:focus-visible, summary:focus-visible, input:focus-visible, canvas:focus-visible {
+    outline: 3px solid var(--water); outline-offset: 3px; }
+  code { font-size: .95em; background: var(--surface); border: 1px solid var(--rule); padding: 0 .3em; border-radius: 3px; }
+  img, svg, canvas { max-width: 100%; }
+
+  /* ===== Hero ===== */
+  .hero { position: relative; overflow: hidden; border-bottom: 1px solid var(--rule); }
+  .hero svg { display: block; width: 100%; height: auto; max-height: 300px; }
+  .hero .contours path { fill: none; stroke: var(--contour); stroke-width: 1.2; opacity: .55; }
+  .hero .contours path.index { stroke-width: 2.2; opacity: .8; }
+  .hero .reticle { stroke: var(--visible); stroke-width: 3; fill: none; }
+  .hero .target-name { font-family: var(--font-head); font-size: 34px; font-weight: 700; fill: var(--ink); }
+  .hero .target-meta { font-family: var(--font-body); font-size: 19px; fill: var(--muted); }
+  .intro { max-width: var(--measure); margin: 0 auto; padding: 2rem 1.25rem 0; }
+  .intro h1 { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+  .intro .lede { font-size: 1.2rem; color: var(--muted); margin-top: .75rem; }
+  .actions { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 .5rem; }
+  .download, .try { display: inline-block; padding: .85rem 1.4rem; text-decoration: none; font-weight: 700;
+                    font-size: 1.1rem; border-radius: 6px; }
+  .download { background: var(--hidden); color: #fff; }
+  .download[aria-disabled="true"] { background: var(--rule); color: var(--muted); pointer-events: none; }
+  .try { border: 2px solid var(--ink); color: var(--ink); }
+  .small { font-size: .92rem; color: var(--muted); }
+
+  /* ===== Lab ===== */
+  .lab { max-width: var(--wide); margin: 0 auto; padding: 0 1.25rem; }
+  .lab h2 { max-width: var(--measure); }
+  .notice { border-right: 4px solid var(--contour); background: var(--surface); padding: .75rem 1rem; margin: 0 0 1.25rem; }
+  .lab-grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 900px) { .lab-grid { grid-template-columns: 3fr 2fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem; min-width: 0; }
+  .panel h3 { margin-top: 0; }
+  #viewfinder { display: block; width: 100%; aspect-ratio: 4 / 3; border-radius: 6px; background: #000; touch-action: pan-y; cursor: ew-resize; }
+  #map { display: block; width: 100%; aspect-ratio: 448 / 400; border-radius: 6px; cursor: crosshair; }
+  .row { display: flex; align-items: center; gap: .75rem; margin: .75rem 0; flex-wrap: wrap; }
+  .row label { min-width: 4.5rem; }
+  .row input[type="range"] { flex: 1; min-width: 140px; }
+  .row output { min-width: 3.5rem; font-weight: 700; }
+  .params { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem 1rem; }
+  .params label { display: flex; flex-direction: column; font-size: .92rem; color: var(--muted); }
+  .params input { font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 4px; padding: .3rem .5rem; }
+  button.secondary { font: inherit; font-weight: 600; padding: .5rem 1rem; border-radius: 6px; border: 1px solid var(--ink);
+                     background: transparent; color: var(--ink); cursor: pointer; }
+  #sensorStatus { margin: .5rem 0 0; }
+  .table-wrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+  th, td { padding: .45rem .5rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; }
+  th { font-weight: 700; color: var(--muted); }
+  tbody tr { cursor: pointer; }
+  tbody tr[aria-selected="true"] { background: color-mix(in srgb, var(--water) 14%, transparent); }
+  .vis-ok { color: var(--visible); font-weight: 700; }
+  .vis-no { color: var(--hidden); font-weight: 700; }
+  #profile { display: block; width: 100%; height: auto; direction: ltr; }
+  #profile .terrain { fill: color-mix(in srgb, var(--contour) 35%, transparent); stroke: var(--contour); stroke-width: 1.5; }
+  #profile .sight { stroke: var(--visible); stroke-width: 2; fill: none; }
+  #profile .sight.blocked { stroke: var(--hidden); stroke-dasharray: 6 4; }
+  #profile .axis { stroke: var(--rule); }
+  #profile text { fill: var(--muted); font-size: 12px; font-family: var(--font-body); }
+  #tests li.pass::marker { color: var(--visible); }
+  #tests li.fail::marker { color: var(--hidden); }
+  #tests { padding-right: 1.4rem; }
+
+  /* ===== Help content ===== */
+  ol.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 0 3.2rem 1.4rem 0; }
+  ol.steps > li::before { content: counter(step); position: absolute; right: 0; top: -.1rem; width: 2.2rem; height: 2.2rem;
+    border-radius: 50%; border: 2px solid var(--contour); display: grid; place-items: center;
+    font-family: var(--font-head); font-weight: 700; color: var(--contour); }
+  ol.steps > li strong { display: block; }
+  .legend { display: grid; grid-template-columns: auto 1fr; gap: .6rem 1rem; align-items: start; margin: 1rem 0; }
+  .swatch { width: 1.1rem; height: 1.1rem; border-radius: 50%; border: 3px solid; margin-top: .3rem; }
+  .swatch.ok { border-color: var(--visible); }
+  .swatch.no { border-color: var(--hidden); }
+  details { border-bottom: 1px solid var(--rule); padding: .8rem 0; }
+  summary { cursor: pointer; font-weight: 700; }
+  details[open] summary { margin-bottom: .5rem; }
+  ul { padding-right: 1.4rem; margin: 0 0 1rem; }
+  footer { max-width: var(--measure); margin: 0 auto; padding: 2rem 1.25rem; border-top: 1px solid var(--rule); }
+  @media (prefers-reduced-motion: no-preference) {
+    .hero .reticle { animation: settle 1.2s ease-out 1; transform-origin: 480px 170px; }
+    @keyframes settle { from { transform: rotate(-12deg) scale(1.15); opacity: .3; } to { transform: none; opacity: 1; } }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero" aria-hidden="true">
+  <svg viewBox="0 0 960 340" preserveAspectRatio="xMidYMid slice">
+    <g class="contours">
+      <path d="M-20 300 C160 250 260 290 420 240 S700 180 980 230"/>
+      <path class="index" d="M-20 260 C140 210 280 250 430 200 S690 140 980 190"/>
+      <path d="M-20 220 C150 175 290 210 440 165 S680 105 980 150"/>
+      <path d="M120 180 C220 140 330 170 450 132 S640 80 820 108 S940 140 980 118"/>
+      <path class="index" d="M260 150 C340 118 420 135 480 112 S600 70 720 86 S860 120 900 104"/>
+      <path d="M360 124 C420 100 470 108 510 92 S590 64 660 72 S760 96 780 88"/>
+      <path d="M450 98 C490 84 520 86 550 76 S610 62 640 68 S690 80 700 76"/>
+      <path d="M-20 330 C200 300 360 330 520 290 S800 240 980 280"/>
+    </g>
+    <g class="reticle">
+      <circle cx="480" cy="170" r="44"/>
+      <line x1="406" y1="170" x2="462" y2="170"/><line x1="498" y1="170" x2="554" y2="170"/>
+      <line x1="480" y1="96" x2="480" y2="152"/><line x1="480" y1="188" x2="480" y2="244"/>
+    </g>
+    <text class="target-name" x="480" y="56" text-anchor="middle" direction="rtl">כפר תבור</text>
+    <text class="target-meta" x="480" y="84" text-anchor="middle" direction="rtl">טווח: 4.2 ק״מ | אזימוט: 78°</text>
+  </svg>
+</header>
+
+<section class="intro">
+  <h1>PointAndIdentify</h1>
+  <p class="lede">כוון את המצלמה אל האופק, וקבל את שם היישוב שמולך, את הטווח אליו, והאם הוא באמת נראה מעבר לתוואי השטח.</p>
+  <div class="actions">
+    <a class="download" id="downloadLink" href="#">הורד את PointAndIdentify לאנדרואיד</a>
+    <a class="try" href="#lab">נסה בדפדפן</a>
+  </div>
+  <p class="small" id="downloadNote">Android 8.0 ומעלה. הקובץ מתעדכן אוטומטית לגרסה האחרונה. <a id="releasesLink" href="#">כל הגרסאות</a></p>
+</section>
+
+<section class="lab" id="lab" aria-labelledby="labTitle">
+  <h2 id="labTitle">מעבדת ניסוי</h2>
+  <p class="notice"><strong>מודל שטח להמחשה בלבד.</strong> הגבעות כאן מקורבות בידי מודל מתמטי סביב עמק יזרעאל והר תבור, ואינן נתוני SRTM. המנוע עצמו (קו ראייה, עקמומיות, שבירה ובחירת יעד) זהה לזה שבאפליקציה, כך שאפשר לבדוק את ההתנהגות שלו, לא את דיוק השטח.</p>
+
+  <div class="lab-grid">
+    <div class="panel">
+      <h3>מבט המצלמה</h3>
+      <canvas id="viewfinder" width="800" height="600" tabindex="0" aria-label="הדמיית מבט מצלמה; גרור אופקית או השתמש בחצים לסיבוב"></canvas>
+      <div class="row">
+        <label for="azimuth">אזימוט</label>
+        <input type="range" id="azimuth" min="0" max="359" step="1" value="47">
+        <output id="azimuthOut" for="azimuth">47°</output>
+      </div>
+      <p class="small">גרור את התמונה ימינה ושמאלה, או השתמש בסרגל. ההדמיה מציגה שטח עד 15 ק"מ, בגלל גודל המודל; באפליקציה הטווח 50 ק"מ.</p>
+      <button class="secondary" id="sensorButton" type="button">השתמש במצפן ובמיקום של המכשיר</button>
+      <p class="small" id="sensorStatus" role="status"></p>
+    </div>
+
+    <div class="panel">
+      <h3>מיקום הצופה</h3>
+      <canvas id="map" width="448" height="400" aria-label="מפת גבהים; הקש לבחירת מיקום הצופה"></canvas>
+      <p class="small" id="observerText" role="status"></p>
+      <h3>פרמטרים</h3>
+      <div class="params">
+        <label>גובה עין (מ')<input type="number" id="pEye" value="1.7" step="0.1" min="0"></label>
+        <label>גובה מבנה ביעד (מ')<input type="number" id="pTarget" value="10" step="1" min="0"></label>
+        <label>מקדם שבירה k<input type="number" id="pK" value="0.13" step="0.01" min="0" max="0.5"></label>
+        <label>סף זווית מינימלי (°)<input type="number" id="pTol" value="3" step="0.5" min="0.5"></label>
+        <label>שדה ראייה אופקי (°)<input type="number" id="pFov" value="60" step="1" min="20" max="120"></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="lab-grid" style="margin-top:1.25rem">
+    <div class="panel">
+      <h3>יעדים בטווח</h3>
+      <p class="small">הקש על שורה כדי לכוון אליה ולהציג את חתך הקרקע.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>יישוב</th><th>טווח (ק"מ)</th><th>אזימוט</th><th>נראות</th><th>מרווח מינימלי (מ')</th></tr></thead>
+          <tbody id="targetRows"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="panel">
+      <h3 id="profileTitle">חתך קרקע</h3>
+      <svg id="profile" viewBox="0 0 480 220" role="img" aria-labelledby="profileTitle"></svg>
+      <p class="small">קו הראייה מחושב במישור המשיק לצופה: הקרקע מונמכת לפי עקמומיות כדור הארץ ושבירה.</p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:1.25rem">
+    <h3>בדיקות מנוע</h3>
+    <p class="small">אותן בדיקות יחידה שבקוד האפליקציה, מורצות כאן על מנוע ה-JavaScript.</p>
+    <ol id="tests"></ol>
+  </div>
+</section>
+
+<main>
+
+<h2 id="install">התקנה ראשונית</h2>
+<ol class="steps">
+  <li><strong>הורד את הקובץ</strong>לחץ על הכפתור למעלה מתוך הטלפון. יורד קובץ בשם <code>PointAndIdentify.apk</code>.</li>
+  <li><strong>אשר התקנה ממקור זה</strong>בפתיחת הקובץ, אנדרואיד יבקש לאשר התקנה מהדפדפן או ממנהל הקבצים. אשר, וחזור למסך ההתקנה.</li>
+  <li><strong>התקן</strong>לחץ "התקן". אם מופיעה אזהרת Play Protect, בחר "התקן בכל זאת". האפליקציה אינה מופצת דרך Google Play.</li>
+  <li><strong>אשר הרשאות</strong>בפתיחה הראשונה אשר מצלמה ומיקום מדויק. בלעדיהן האפליקציה לא פועלת.</li>
+  <li><strong>המתן לנתוני השטח</strong>בפעם הראשונה בכל אזור יורדים נתוני גובה לרדיוס 50 ק"מ סביבך, כ-15–20 מגה-בייט. האזור הקרוב יורד ראשון, ומונה האריחים בפינת המסך מראה את ההתקדמות.</li>
+</ol>
+
+<h2 id="use">שימוש</h2>
+<h3>קריאת המסך</h3>
+<p>החזק את הטלפון זקוף וכוון את מרכז הכוונת אל היעד.</p>
+<div class="legend">
+  <span class="swatch ok"></span><span><strong>כוונת ירוקה ושם בצהוב</strong>: היישוב נראה בקו ראייה ישיר.</span>
+  <span class="swatch no"></span><span><strong>כוונת אדומה עם "(מוסתר טופוגרפית)"</strong>: רכס או גבעה מסתירים את היישוב. מוצג הטווח שבו נמצאת ההסתרה.</span>
+  <span class="swatch no"></span><span><strong>"(אין נתוני שטח)"</strong>: נתוני הגובה לאזור עדיין לא ירדו, ולכן אי אפשר לקבוע נראות.</span>
+</div>
+<p>יעדים מוצגים עד טווח של 50 ק"מ, כולל רצועת הגבול של המדינות השכנות. יעד יכול להיות יישוב, הר או פסגה, מגדל או תורן, מגדלור, ארובה, מגדל מים, מבצר, חורבה או אנדרטה. כשכמה יעדים באותו כיוון, מועדף יעד נראה על פני מוסתר.</p>
+<h3>שכבת הנתונים</h3>
+<p>בתחתית המסך, מעל כפתור הצילום, מוצגים הנתונים הנלווים. אותם נתונים מוטבעים גם בתמונה:</p>
+<ul>
+  <li><strong>צופה</strong>: קואורדינטות, דיוק המיקום וגובה העין מעל פני הים.</li>
+  <li><strong>כיוון</strong>: אזימוט לפי צפון אמת, וזווית אנכית של המצלמה מעל או מתחת לאופק.</li>
+  <li><strong>יעד</strong>: שם, סוג, קואורדינטות וגובה.</li>
+  <li><strong>גאומטריה</strong>: טווח, אזימוט מדויק, זווית אנכית אל היעד, ומרווח קו הראייה מעל הקרקע.</li>
+</ul>
+
+<h3>כיול מצפן</h3>
+<p>אם מופיעה ההודעה "מצפן לא מכויל", הנע את הטלפון באוויר בתנועת 8 כמה פעמים. התרחק מרכב, ממבני מתכת ומכיסוי עם מגנט. גם אחרי כיול, דיוק המצפן בטלפון הוא בערך ±3–5°.</p>
+
+<h3>צילום</h3>
+<p>לחיצה על "צילום" שומרת תמונה בגלריה בתיקייה <code>DCIM/PointAndIdentify</code>. על התמונה מוטבעים הכוונת, שם היעד, שכבת הנתונים והשעה. מיקום הצופה, הכיוון ומיקום היעד נשמרים גם בנתוני התמונה (EXIF).</p>
+
+<h2 id="update">עדכון גרסה</h2>
+<ol class="steps">
+  <li><strong>לחץ "עדכון"</strong>בפינה העליונה של המסך.</li>
+  <li><strong>אשר הורדה</strong>אם יש גרסה חדשה, תוצג הודעה עם מספר הגרסה. בחר "כן".</li>
+  <li><strong>אשר התקנה</strong>בפעם הראשונה אנדרואיד יפתח את ההגדרה "התקנת אפליקציות לא מוכרות" עבור PointAndIdentify. הפעל אותה, חזור ולחץ שוב "עדכון".</li>
+</ol>
+<p class="small">כל קובץ עדכון נבדק לפני ההתקנה. קובץ שאינו תואם לגרסה שפורסמה נדחה.</p>
+
+<h2 id="help">פתרון בעיות</h2>
+<details><summary>"ממתין למיקום GPS" ולא משתנה</summary>
+  <p>ודא שהמיקום פועל במצב דיוק גבוה, וצא לשטח פתוח. בתוך מבנה הקליטה חלשה.</p></details>
+<details><summary>השם שמוצג אינו היישוב שאני רואה</summary>
+  <p>בטווח ארוך, סטייה קטנה של המצפן מזיזה את הכיוון בהרבה: 4° ב-15 ק"מ הם כקילומטר הצידה, וב-50 ק"מ כ-3.5 ק"מ. כייל את המצפן והחזק את הטלפון זקוף ויציב.</p></details>
+<details><summary>"אין נתוני שטח" גם אחרי המתנה</summary>
+  <p>נדרש חיבור לאינטרנט בפעם הראשונה בכל אזור. אחרי ההורדה הנתונים נשמרים בטלפון ופועלים גם בלי רשת.</p></details>
+<details><summary>העדכון נכשל עם הודעה על התנגשות חבילה</summary>
+  <p>הגרסה המותקנת נחתמה במפתח אחר, למשל גרסת פיתוח. הסר את האפליקציה והתקן מחדש מהכפתור בראש העמוד.</p></details>
+<details><summary>"מצב לא מקוון"</summary>
+  <p>אין גישה לשרת הנתונים. האפליקציה ממשיכה לעבוד עם הנתונים שכבר נשמרו בטלפון.</p></details>
+
+<h2 id="limits">מגבלות</h2>
+<ul>
+  <li>הנראות מחושבת מול תוואי הקרקע בלבד, ברזולוציה של כ-30 מטר. מבנים, עצים ואובך אינם נלקחים בחשבון.</li>
+  <li>האפליקציה מיועדת להתקנה ישירה בלבד, ולא דרך Google Play.</li>
+  <li>מאגר היעדים מתעדכן מעת לעת, וייתכנו יעדים חסרים. יעדים במדינות שכנות כלולים רק עד 50 ק"מ מהגבול, ושמם עשוי להופיע באנגלית.</li>
+</ul>
+</main>
+
+<footer class="small">
+  <p>נתוני גובה באפליקציה: SRTM, NASA / USGS. נתוני יעדים: © OpenStreetMap contributors, ברישיון ODbL. מודל השטח במעבדה הוא קירוב מתמטי ואינו נגזר מנתונים אלה.</p>
+  <p>קוד המקור מופץ תחת BSD 3-Clause License. <a id="repoLink" href="#">קוד המקור ב-GitHub</a></p>
+</footer>
+
+<!-- Data and UI strings live in markup so that script code stays English-only. -->
+<ol id="settlementData" hidden>
+  <li data-lat="32.6865" data-lon="35.4208">כפר תבור</li>
+  <li data-lat="32.6974" data-lon="35.4385">שדמות דבורה</li>
+  <li data-lat="32.6074" data-lon="35.2891">עפולה</li>
+  <li data-lat="32.7019" data-lon="35.2974">נצרת</li>
+  <li data-lat="32.7922" data-lon="35.5312">טבריה</li>
+  <li data-lat="32.6738" data-lon="35.2407">מגדל העמק</li>
+  <li data-lat="32.6864" data-lon="35.3905">הר תבור (פסגה)</li>
+</ol>
+<div id="i18n" hidden
+  data-no-target="אין יעד גלוי בכיוון"
+  data-azimuth="אזימוט: {0}°"
+  data-visible-details="טווח: {0} ק״מ | אזימוט: {1}°"
+  data-hidden-name="{0} (מוסתר טופוגרפית)"
+  data-hidden-details="הסתרה בטווח {0} ק״מ | אזימוט: {1}°"
+  data-visible="נראה"
+  data-hidden="מוסתר"
+  data-observer="צופה: {0}, {1} | גובה קרקע {2} מ׳"
+  data-sensor-on="מצפן המכשיר פעיל"
+  data-sensor-denied="אין גישה לחיישני הכיוון בדפדפן זה. השתמש בסרגל."
+  data-sensor-none="לא התקבלו נתוני מצפן. ייתכן שהדפדפן חוסם חיישנים בתוך עמוד מוטמע."
+  data-geo-outside="המיקום שלך מחוץ לאזור המודל, לכן הצופה נשאר במקומו. המצפן פעיל."
+  data-geo-inside="המיקום שלך בתוך אזור המודל; הצופה הועבר אליו."
+  data-geo-denied="אין גישה למיקום; הצופה נשאר במקומו."
+  data-download-off="קישור ההורדה פעיל רק בעמוד הרשמי ב-GitHub Pages."
+  data-profile-base="חתך קרקע"
+  data-profile-title="חתך קרקע אל {0}"
+  data-km="ק״מ"
+  data-m="מ׳"
+  data-test-curv="עקמומיות ושבירה ב-15 ק״מ ≈ 15.36 מ׳"
+  data-test-wrap="הפרש זוויות דרך הצפון: 358° מול 2° = 4°"
+  data-test-east="כיוון מזרחה = 90°"
+  data-test-ridge="רכס של 200 מ׳ באמצע הדרך מסתיר את היעד"
+  data-test-flat="שטח שטוח: יעד ב-1.9 ק״מ נראה"
+  data-test-tol="סף זווית ליישוב ב-2 ק״מ ≈ 11.31°"
+  data-test-pass="עבר"
+  data-test-fail="נכשל"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // =============================================================
+  // Conventions
+  //   Distances : metres      Heights : metres MSL
+  //   Angles    : degrees, azimuth clockwise from true north
+  // =============================================================
+
+  // ===== Parameters: engine (mirrors AppConfig.kt) =====
+  var EARTH_RADIUS_M = 6371008.8;
+  var MAX_TARGET_RANGE_M = 15000;
+  var MIN_TARGET_RANGE_M = 400;      // observer inside a settlement does not target it
+  var DEM_SAMPLE_SPACING_M = 30;
+  var TARGET_EXCLUSION_M = 150;
+  var SETTLEMENT_RADIUS_M = 400;
+  var METERS_PER_DEG_LAT = 111320;
+
+  // ===== Parameters: illustrative terrain model (NOT survey data) =====
+  var MAP_BOUNDS = { minLat: 32.55, maxLat: 32.85, minLon: 35.20, maxLon: 35.60 };
+  var BASE_ELEVATION_M = 60;
+  // Each hill: centre, peak height above base (m), sigma along/across axis (m), axis rotation (deg from east).
+  var HILLS = [
+    { lat: 32.6870, lon: 35.3905, h: 425, sx: 650, sy: 650, rot: 0 },     // Mount Tabor dome (approx.)
+    { lat: 32.6200, lon: 35.3650, h: 380, sx: 2200, sy: 1300, rot: 20 },  // Givat HaMoreh (approx.)
+    { lat: 32.7050, lon: 35.2950, h: 330, sx: 6500, sy: 2200, rot: 10 },  // Nazareth ridge (approx.)
+    { lat: 32.7300, lon: 35.4600, h: 110, sx: 9000, sy: 7000, rot: 0 },   // Lower Galilee plateau (approx.)
+    { lat: 32.4600, lon: 35.4000, h: 400, sx: 9000, sy: 2500, rot: -40 }, // Gilboa (approx.)
+    { lat: 32.8200, lon: 35.5900, h: -290, sx: 7000, sy: 9000, rot: 0 }   // Kinneret basin (approx.)
+  ];
+
+  // ===== Parameters: rendering =====
+  var VIEW_COLUMNS = 400;          // horizontal rays across the field of view
+  var HORIZON_Y_RATIO = 0.55;      // vertical position of the 0-degree elevation line
+  var NEAR_STEP_M = 30, STEP_GROWTH = 0.004; // ray step = NEAR_STEP_M + distance * STEP_GROWTH
+
+  var DEG = Math.PI / 180;
+  var T = document.getElementById("i18n").dataset;
+
+  function fmt(s) { var a = arguments; return s.replace(/\{(\d)\}/g, function (_, i) { return a[+i + 1]; }); }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // ===== Geodesy (mirrors GeoMath.kt) =====
+  function normalizeDeg(d) { var r = d % 360; return r < 0 ? r + 360 : r; }
+  function angleDiffDeg(a, b) { var d = Math.abs(normalizeDeg(a) - normalizeDeg(b)); return d > 180 ? 360 - d : d; }
+  function distanceM(lat1, lon1, lat2, lon2) {
+    var p1 = lat1 * DEG, p2 = lat2 * DEG, dp = (lat2 - lat1) * DEG, dl = (lon2 - lon1) * DEG;
+    var a = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return 2 * EARTH_RADIUS_M * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function bearingDeg(lat1, lon1, lat2, lon2) {
+    var p1 = lat1 * DEG, p2 = lat2 * DEG, dl = (lon2 - lon1) * DEG;
+    var y = Math.sin(dl) * Math.cos(p2);
+    var x = Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl);
+    return normalizeDeg(Math.atan2(y, x) / DEG);
+  }
+  // drop = x^2 / (2 * R / (1 - k)): Earth curvature reduced by refraction.
+  function curvatureDropM(x, k) { return x * x / (2 * EARTH_RADIUS_M / (1 - k)); }
+  function destination(lat, lon, bearing, dist) {
+    var d = dist / EARTH_RADIUS_M, b = bearing * DEG, p1 = lat * DEG, l1 = lon * DEG;
+    var p2 = Math.asin(Math.sin(p1) * Math.cos(d) + Math.cos(p1) * Math.sin(d) * Math.cos(b));
+    var l2 = l1 + Math.atan2(Math.sin(b) * Math.sin(d) * Math.cos(p1), Math.cos(d) - Math.sin(p1) * Math.sin(p2));
+    return { lat: p2 / DEG, lon: l2 / DEG };
+  }
+
+  // ===== Illustrative terrain: base + rotated Gaussian hills =====
+  function modelElevation(lat, lon) {
+    var z = BASE_ELEVATION_M;
+    for (var i = 0; i < HILLS.length; i++) {
+      var hl = HILLS[i];
+      var dx = (lon - hl.lon) * METERS_PER_DEG_LAT * Math.cos(hl.lat * DEG);
+      var dy = (lat - hl.lat) * METERS_PER_DEG_LAT;
+      var c = Math.cos(hl.rot * DEG), s = Math.sin(hl.rot * DEG);
+      var u = dx * c + dy * s, v = -dx * s + dy * c;
+      z += hl.h * Math.exp(-(u * u / (2 * hl.sx * hl.sx) + v * v / (2 * hl.sy * hl.sy)));
+    }
+    return z;
+  }
+
+  // ===== Line of sight (mirrors LineOfSightCalculator.kt) =====
+  function evaluate(terrain, oLat, oLon, eyeAlt, target, p) {
+    var distance = distanceM(oLat, oLon, target.lat, target.lon);
+    var bearing = bearingDeg(oLat, oLon, target.lat, target.lon);
+    var ground = terrain(target.lat, target.lon);
+    if (ground == null) ground = target.alt;
+    if (ground == null) return { target: target, bearing: bearing, distance: distance, visibility: "unknown" };
+    var h0 = eyeAlt;
+    var h1Eff = ground + p.targetHeight - curvatureDropM(distance, p.k);
+    var n = Math.max(2, Math.ceil(distance / DEM_SAMPLE_SPACING_M));
+    var unknown = false, minClear = Infinity;
+    for (var i = 1; i < n; i++) {
+      var f = i / n, x = f * distance;
+      if (distance - x < TARGET_EXCLUSION_M) break;
+      var z = terrain(oLat + f * (target.lat - oLat), oLon + f * (target.lon - oLon));
+      if (z == null) { unknown = true; continue; }
+      var clearance = (h0 + f * (h1Eff - h0)) - (z - curvatureDropM(x, p.k));
+      if (clearance < minClear) minClear = clearance;
+      if (clearance < 0) {
+        return { target: target, bearing: bearing, distance: distance, visibility: "obstructed",
+                 obstructionDistance: x, minClearance: clearance, groundTarget: ground };
+      }
+    }
+    return { target: target, bearing: bearing, distance: distance, visibility: unknown ? "unknown" : "visible",
+             minClearance: isFinite(minClear) ? minClear : null, groundTarget: ground };
+  }
+
+  // ===== Target selection (mirrors TargetSelector.kt) =====
+  function toleranceDeg(distance, hfov, baseTol) {
+    var angular = Math.atan(SETTLEMENT_RADIUS_M / Math.max(distance, 1)) / DEG;
+    return Math.min(Math.max(baseTol, angular), hfov / 2);
+  }
+  function select(evals, azimuth, hfov, baseTol) {
+    var bestVis = null, bestOther = null;
+    evals.forEach(function (e) {
+      var diff = angleDiffDeg(azimuth, e.bearing), tol = toleranceDeg(e.distance, hfov, baseTol);
+      if (diff > tol) return;
+      var score = diff / tol + e.distance / MAX_TARGET_RANGE_M * 0.1;
+      if (e.visibility === "visible") { if (!bestVis || score < bestVis.s) bestVis = { e: e, s: score }; }
+      else if (!bestOther || score < bestOther.s) bestOther = { e: e, s: score };
+    });
+    return (bestVis || bestOther || { e: null }).e;
+  }
+
+  // ===== State =====
+  var settlements = Array.prototype.map.call(
+    document.querySelectorAll("#settlementData li"),
+    function (li) { return { name: li.textContent.trim(), lat: +li.dataset.lat, lon: +li.dataset.lon, alt: null }; });
+  var state = { lat: 32.6074, lon: 35.2891, azimuth: 47, evals: [], selected: null, pinned: null };
+
+  function params() {
+    function num(id, def) { var v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : def; }
+    return {
+      eye: Math.max(0, num("pEye", 1.7)), targetHeight: Math.max(0, num("pTarget", 10)),
+      k: Math.min(0.5, Math.max(0, num("pK", 0.13))), baseTol: Math.max(0.5, num("pTol", 3)),
+      hfov: Math.min(120, Math.max(20, num("pFov", 60)))
+    };
+  }
+
+  function recompute() {
+    var p = params();
+    var eyeAlt = modelElevation(state.lat, state.lon) + p.eye;
+    state.eyeAlt = eyeAlt;
+    state.evals = settlements
+      .filter(function (s) {
+        var d = distanceM(state.lat, state.lon, s.lat, s.lon);
+        return d >= MIN_TARGET_RANGE_M && d <= MAX_TARGET_RANGE_M;
+      })
+      .map(function (s) { return evaluate(modelElevation, state.lat, state.lon, eyeAlt, s, p); })
+      .sort(function (a, b) { return a.distance - b.distance; });
+    document.getElementById("observerText").textContent =
+      fmt(T.observer, state.lat.toFixed(4), state.lon.toFixed(4), Math.round(eyeAlt - p.eye));
+    renderTable();
+    scheduleRender();
+  }
+
+  // ===== Map: hypsometric tint + hillshade, rendered once =====
+  var mapCanvas = document.getElementById("map"), mapCtx = mapCanvas.getContext("2d");
+  var mapBase = null;
+  function lonToX(lon) { return (lon - MAP_BOUNDS.minLon) / (MAP_BOUNDS.maxLon - MAP_BOUNDS.minLon) * mapCanvas.width; }
+  function latToY(lat) { return (MAP_BOUNDS.maxLat - lat) / (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat) * mapCanvas.height; }
+  function xToLon(x) { return MAP_BOUNDS.minLon + x / mapCanvas.width * (MAP_BOUNDS.maxLon - MAP_BOUNDS.minLon); }
+  function yToLat(y) { return MAP_BOUNDS.maxLat - y / mapCanvas.height * (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat); }
+
+  function buildMapBase() {
+    var w = mapCanvas.width, h = mapCanvas.height, img = mapCtx.createImageData(w, h);
+    var cellM = (MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat) * METERS_PER_DEG_LAT / h;
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        var lat = yToLat(y), lon = xToLon(x), z = modelElevation(lat, lon);
+        var zx = modelElevation(lat, xToLon(x + 1)) - z, zy = modelElevation(yToLat(y + 1), lon) - z;
+        var shade = Math.max(0.35, Math.min(1.25, 1 - (zx - zy) / cellM * 1.6)); // NW light
+        var col = z < -150 ? [96, 150, 186] : tint(z);
+        var o = (y * w + x) * 4;
+        img.data[o] = Math.min(255, col[0] * shade); img.data[o + 1] = Math.min(255, col[1] * shade);
+        img.data[o + 2] = Math.min(255, col[2] * shade); img.data[o + 3] = 255;
+      }
+    }
+    mapBase = img;
+  }
+  function tint(z) {
+    var stops = [[-150, [120, 160, 110]], [100, [168, 190, 130]], [250, [206, 196, 140]], [400, [190, 150, 100]], [600, [150, 110, 80]]];
+    for (var i = 1; i < stops.length; i++) {
+      if (z <= stops[i][0]) {
+        var a = stops[i - 1], b = stops[i], t = (z - a[0]) / (b[0] - a[0]);
+        return [a[1][0] + t * (b[1][0] - a[1][0]), a[1][1] + t * (b[1][1] - a[1][1]), a[1][2] + t * (b[1][2] - a[1][2])];
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+
+  function renderMap() {
+    var p = params();
+    mapCtx.putImageData(mapBase, 0, 0);
+    var ox = lonToX(state.lon), oy = latToY(state.lat);
+    // Field-of-view wedge to 15 km.
+    var left = destination(state.lat, state.lon, state.azimuth - p.hfov / 2, MAX_TARGET_RANGE_M);
+    var right = destination(state.lat, state.lon, state.azimuth + p.hfov / 2, MAX_TARGET_RANGE_M);
+    mapCtx.beginPath(); mapCtx.moveTo(ox, oy); mapCtx.lineTo(lonToX(left.lon), latToY(left.lat));
+    mapCtx.lineTo(lonToX(right.lon), latToY(right.lat)); mapCtx.closePath();
+    mapCtx.fillStyle = "rgba(255,255,255,0.22)"; mapCtx.fill();
+    mapCtx.strokeStyle = "rgba(255,255,255,0.8)"; mapCtx.lineWidth = 1; mapCtx.stroke();
+    // Range ring.
+    var ringPx = MAX_TARGET_RANGE_M / ((MAP_BOUNDS.maxLat - MAP_BOUNDS.minLat) * METERS_PER_DEG_LAT) * mapCanvas.height;
+    mapCtx.beginPath(); mapCtx.arc(ox, oy, ringPx, 0, 2 * Math.PI);
+    mapCtx.setLineDash([4, 4]); mapCtx.strokeStyle = "rgba(30,41,45,0.6)"; mapCtx.stroke(); mapCtx.setLineDash([]);
+    // Settlements.
+    mapCtx.font = "600 13px " + css("--font-body"); mapCtx.textAlign = "center"; mapCtx.direction = "rtl";
+    settlements.forEach(function (s) {
+      var e = state.evals.find(function (v) { return v.target === s; });
+      var x = lonToX(s.lon), y = latToY(s.lat);
+      mapCtx.beginPath(); mapCtx.arc(x, y, 5, 0, 2 * Math.PI);
+      mapCtx.fillStyle = !e ? "#777" : e.visibility === "visible" ? "#2F7A36" : "#C0392B";
+      mapCtx.fill(); mapCtx.strokeStyle = "#fff"; mapCtx.lineWidth = 1.5; mapCtx.stroke();
+      mapCtx.lineWidth = 3; mapCtx.strokeStyle = "rgba(255,255,255,0.85)"; mapCtx.strokeText(s.name, x, y - 9);
+      mapCtx.fillStyle = "#1E292D"; mapCtx.fillText(s.name, x, y - 9);
+    });
+    // Observer.
+    mapCtx.beginPath(); mapCtx.arc(ox, oy, 7, 0, 2 * Math.PI);
+    mapCtx.fillStyle = "#2D6A8A"; mapCtx.fill(); mapCtx.strokeStyle = "#fff"; mapCtx.lineWidth = 2; mapCtx.stroke();
+  }
+
+  function onMapPick(ev) {
+    var r = mapCanvas.getBoundingClientRect();
+    var x = (ev.clientX - r.left) / r.width * mapCanvas.width, y = (ev.clientY - r.top) / r.height * mapCanvas.height;
+    state.lat = yToLat(y); state.lon = xToLon(x); state.pinned = null;
+    recompute();
+  }
+  mapCanvas.addEventListener("click", onMapPick);
+
+  // ===== Viewfinder: layered skyline by ray marching =====
+  var vf = document.getElementById("viewfinder"), vfCtx = vf.getContext("2d");
+  function renderViewfinder() {
+    var p = params(), W = vf.width, H = vf.height;
+    var focal = (W / 2) / Math.tan(p.hfov / 2 * DEG);
+    var horizonY = H * HORIZON_Y_RATIO;
+    var sky = vfCtx.createLinearGradient(0, 0, 0, horizonY);
+    sky.addColorStop(0, "#6C9BC0"); sky.addColorStop(1, "#D9E6EC");
+    vfCtx.fillStyle = sky; vfCtx.fillRect(0, 0, W, H);
+
+    var colW = W / VIEW_COLUMNS;
+    for (var c = 0; c < VIEW_COLUMNS; c++) {
+      // Screen x -> ray azimuth through a pinhole camera.
+      var sx = (c + 0.5) * colW, az = state.azimuth + Math.atan((sx - W / 2) / focal) / DEG;
+      var maxAngle = -Math.PI / 2, lastY = H, x = NEAR_STEP_M;
+      while (x <= MAX_TARGET_RANGE_M) {
+        var pt = destination(state.lat, state.lon, az, x);
+        var zEff = modelElevation(pt.lat, pt.lon) - curvatureDropM(x, p.k);
+        var ang = Math.atan2(zEff - state.eyeAlt, x);
+        if (ang > maxAngle) {
+          var y = horizonY - focal * Math.tan(ang);
+          if (y < lastY) {
+            var haze = Math.min(1, x / MAX_TARGET_RANGE_M);   // aerial perspective with distance
+            var r = 88 + haze * 110, g = 108 + haze * 100, b = 66 + haze * 140;
+            vfCtx.fillStyle = "rgb(" + (r | 0) + "," + (g | 0) + "," + (b | 0) + ")";
+            vfCtx.fillRect(c * colW, y, colW + 0.6, lastY - y);
+            lastY = y;
+          }
+          maxAngle = ang;
+        }
+        x += NEAR_STEP_M + x * STEP_GROWTH;
+      }
+    }
+
+    // Target markers inside the field of view.
+    // The pointed target is labelled by the overlay, so its marker label is skipped to avoid overlap.
+    var chosen = select(state.evals, state.azimuth, p.hfov, p.baseTol);
+    vfCtx.textAlign = "center"; vfCtx.direction = "rtl";
+    state.evals.forEach(function (e) {
+      var d = ((e.bearing - state.azimuth + 540) % 360) - 180;
+      if (Math.abs(d) > p.hfov / 2) return;
+      var mx = W / 2 + focal * Math.tan(d * DEG);
+      var top = (e.groundTarget || 0) + p.targetHeight - curvatureDropM(e.distance, p.k);
+      var my = horizonY - focal * Math.tan(Math.atan2(top - state.eyeAlt, e.distance));
+      var ok = e.visibility === "visible";
+      vfCtx.beginPath(); vfCtx.arc(mx, my, 7, 0, 2 * Math.PI);
+      vfCtx.fillStyle = ok ? "#3DDC64" : "rgba(240,116,98,0.85)"; vfCtx.fill();
+      vfCtx.lineWidth = 2; vfCtx.strokeStyle = "#000"; vfCtx.stroke();
+      if (e === chosen) return;
+      vfCtx.font = "600 20px " + css("--font-body");
+      vfCtx.lineWidth = 4; vfCtx.strokeStyle = "rgba(0,0,0,0.75)"; vfCtx.strokeText(e.target.name, mx, my - 14);
+      vfCtx.fillStyle = "#fff"; vfCtx.fillText(e.target.name, mx, my - 14);
+    });
+
+    // Overlay identical in meaning to OverlayRenderer.kt.
+    state.selected = chosen;
+    var visible = chosen && chosen.visibility === "visible";
+    var cx = W / 2, cy = horizonY, rr = Math.min(W, H) * 0.06, arm = Math.min(W, H) * 0.03;
+    vfCtx.strokeStyle = visible ? "#00E000" : "#FF3030"; vfCtx.lineWidth = 3;
+    vfCtx.shadowColor = "#000"; vfCtx.shadowBlur = 4;
+    vfCtx.beginPath(); vfCtx.arc(cx, cy, rr, 0, 2 * Math.PI); vfCtx.stroke();
+    [[-rr - arm, 0, -rr * 0.4, 0], [rr * 0.4, 0, rr + arm, 0], [0, -rr - arm, 0, -rr * 0.4], [0, rr * 0.4, 0, rr + arm]]
+      .forEach(function (l) { vfCtx.beginPath(); vfCtx.moveTo(cx + l[0], cy + l[1]); vfCtx.lineTo(cx + l[2], cy + l[3]); vfCtx.stroke(); });
+
+    var primary, secondary;
+    if (!chosen) { primary = T.noTarget; secondary = fmt(T.azimuth, Math.round(state.azimuth) % 360); }
+    else if (visible) {
+      primary = chosen.target.name;
+      secondary = fmt(T.visibleDetails, (chosen.distance / 1000).toFixed(1), Math.round(chosen.bearing) % 360);
+    } else {
+      primary = fmt(T.hiddenName, chosen.target.name);
+      secondary = fmt(T.hiddenDetails, ((chosen.obstructionDistance || 0) / 1000).toFixed(1), Math.round(chosen.bearing) % 360);
+    }
+    vfCtx.font = "700 " + Math.round(Math.min(W, H) * 0.06) + "px " + css("--font-body");
+    vfCtx.fillStyle = visible ? "#FFEB3B" : "#FFA078";
+    vfCtx.fillText(primary, cx, cy - rr - arm - Math.min(W, H) * 0.075);
+    vfCtx.font = "600 " + Math.round(Math.min(W, H) * 0.038) + "px " + css("--font-body");
+    vfCtx.fillStyle = "#fff";
+    vfCtx.fillText(secondary, cx, cy - rr - arm - Math.min(W, H) * 0.025);
+    vfCtx.shadowBlur = 0;
+
+    renderProfile(state.pinned || chosen);
+    highlightRow(state.pinned || chosen);
+  }
+
+  var pending = false;
+  function scheduleRender() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; renderMap(); renderViewfinder(); });
+  }
+
+  // Azimuth controls: slider, horizontal drag, arrow keys.
+  var azInput = document.getElementById("azimuth"), azOut = document.getElementById("azimuthOut");
+  function setAzimuth(a) {
+    state.azimuth = normalizeDeg(a);
+    azInput.value = Math.round(state.azimuth) % 360;
+    azOut.textContent = Math.round(state.azimuth) % 360 + "°";
+    scheduleRender();
+  }
+  azInput.addEventListener("input", function () { state.pinned = null; setAzimuth(+azInput.value); });
+  var drag = null;
+  vf.addEventListener("pointerdown", function (e) { drag = { x: e.clientX, az: state.azimuth }; vf.setPointerCapture(e.pointerId); });
+  vf.addEventListener("pointermove", function (e) {
+    if (!drag) return;
+    var degPerPx = params().hfov / vf.getBoundingClientRect().width;
+    state.pinned = null;
+    setAzimuth(drag.az - (e.clientX - drag.x) * degPerPx); // drag the scene, like panning a photo
+  });
+  vf.addEventListener("pointerup", function () { drag = null; });
+  vf.addEventListener("pointercancel", function () { drag = null; });
+  vf.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowLeft") { setAzimuth(state.azimuth - 1); e.preventDefault(); }
+    if (e.key === "ArrowRight") { setAzimuth(state.azimuth + 1); e.preventDefault(); }
+  });
+  ["pEye", "pTarget", "pK", "pTol", "pFov"].forEach(function (id) {
+    document.getElementById(id).addEventListener("input", recompute);
+  });
+
+  // ===== Results table =====
+  function renderTable() {
+    var tbody = document.getElementById("targetRows");
+    tbody.innerHTML = "";
+    state.evals.forEach(function (e, i) {
+      var tr = document.createElement("tr");
+      tr.dataset.index = i;
+      var ok = e.visibility === "visible";
+      [e.target.name, (e.distance / 1000).toFixed(1), Math.round(e.bearing) + "°",
+       ok ? T.visible : T.hidden, e.minClearance == null ? "–" : e.minClearance.toFixed(0)]
+        .forEach(function (v, j) {
+          var td = document.createElement("td");
+          td.textContent = v;
+          if (j === 3) td.className = ok ? "vis-ok" : "vis-no";
+          tr.appendChild(td);
+        });
+      tr.addEventListener("click", function () { state.pinned = e; setAzimuth(e.bearing); });
+      tbody.appendChild(tr);
+    });
+  }
+  function highlightRow(e) {
+    Array.prototype.forEach.call(document.querySelectorAll("#targetRows tr"), function (tr) {
+      tr.setAttribute("aria-selected", e && state.evals[+tr.dataset.index] === e ? "true" : "false");
+    });
+  }
+
+  // ===== Terrain profile =====
+  function renderProfile(e) {
+    var svg = document.getElementById("profile"), title = document.getElementById("profileTitle");
+    if (!e) { svg.innerHTML = ""; title.textContent = T.profileBase; return; }
+    title.textContent = fmt(T.profileTitle, e.target.name);
+    var p = params(), W = 480, H = 220, padL = 44, padR = 12, padT = 12, padB = 26, n = 160;
+    var pts = [], zMin = Infinity, zMax = -Infinity;
+    for (var i = 0; i <= n; i++) {
+      var f = i / n, x = f * e.distance;
+      var z = modelElevation(state.lat + f * (e.target.lat - state.lat), state.lon + f * (e.target.lon - state.lon))
+              - curvatureDropM(x, p.k);
+      pts.push([x, z]); zMin = Math.min(zMin, z); zMax = Math.max(zMax, z);
+    }
+    var h1 = e.groundTarget + p.targetHeight - curvatureDropM(e.distance, p.k);
+    zMax = Math.max(zMax, state.eyeAlt, h1) + 20; zMin = Math.min(zMin, state.eyeAlt, h1) - 20;
+    // Profile reads observer -> target from right to left, matching the RTL page direction.
+    function X(x) { return W - padR - x / e.distance * (W - padL - padR); }
+    function Y(z) { return padT + (zMax - z) / (zMax - zMin) * (H - padT - padB); }
+    var d = "M" + X(0) + " " + Y(zMin);
+    pts.forEach(function (q) { d += " L" + X(q[0]).toFixed(1) + " " + Y(q[1]).toFixed(1); });
+    d += " L" + X(e.distance) + " " + Y(zMin) + " Z";
+    var blocked = e.visibility !== "visible";
+    var html = '<line class="axis" x1="' + padL + '" y1="' + (H - padB) + '" x2="' + (W - padR) + '" y2="' + (H - padB) + '"/>' +
+      '<path class="terrain" d="' + d + '"/>' +
+      '<line class="sight' + (blocked ? " blocked" : "") + '" x1="' + X(0) + '" y1="' + Y(state.eyeAlt) +
+      '" x2="' + X(e.distance) + '" y2="' + Y(h1) + '"/>' +
+      '<circle cx="' + X(0) + '" cy="' + Y(state.eyeAlt) + '" r="4" fill="#2D6A8A"/>' +
+      '<circle cx="' + X(e.distance) + '" cy="' + Y(h1) + '" r="4" fill="' + (blocked ? "#C0392B" : "#2F7A36") + '"/>';
+    if (e.obstructionDistance != null) {
+      var oz = pts.reduce(function (best, q) { return Math.abs(q[0] - e.obstructionDistance) < Math.abs(best[0] - e.obstructionDistance) ? q : best; });
+      html += '<circle cx="' + X(oz[0]) + '" cy="' + Y(oz[1]) + '" r="6" fill="none" stroke="#C0392B" stroke-width="2"/>';
+    }
+    html += '<text x="' + (W - padR) + '" y="' + (H - 8) + '" text-anchor="end">0</text>' +
+      '<text x="' + padL + '" y="' + (H - 8) + '" text-anchor="start">' + (e.distance / 1000).toFixed(1) + " " + T.km + '</text>' +
+      '<text x="4" y="' + (Y(zMax) + 10) + '">' + Math.round(zMax) + " " + T.m + '</text>' +
+      '<text x="4" y="' + Y(zMin) + '">' + Math.round(zMin) + " " + T.m + '</text>';
+    svg.innerHTML = html;
+  }
+
+  // ===== Device sensors (best effort; may be blocked inside embedded pages) =====
+  var sensorStatus = document.getElementById("sensorStatus");
+  function cameraHeading(ev) {
+    if (typeof ev.webkitCompassHeading === "number" && ev.beta != null && Math.abs(ev.beta) < 45) return ev.webkitCompassHeading;
+    if (ev.alpha == null || ev.beta == null || ev.gamma == null) return null;
+    // Back camera = device -Z axis expressed in the East-North-Up frame (W3C Z-X'-Y'' rotation).
+    var a = ev.alpha * DEG, b = ev.beta * DEG, g = ev.gamma * DEG;
+    var vx = -(Math.cos(g) * Math.sin(a) * Math.sin(b) + Math.cos(a) * Math.sin(g));
+    var vy = -(Math.sin(a) * Math.sin(g) - Math.cos(a) * Math.cos(g) * Math.sin(b));
+    return normalizeDeg(Math.atan2(vx, vy) / DEG);
+  }
+  function attachOrientation() {
+    var got = false;
+    function handler(ev) {
+      if (!ev.absolute && typeof ev.webkitCompassHeading !== "number" && ev.type !== "deviceorientationabsolute") return;
+      var h = cameraHeading(ev);
+      if (h == null) return;
+      got = true; state.pinned = null; setAzimuth(h);
+    }
+    window.addEventListener("deviceorientationabsolute", handler);
+    window.addEventListener("deviceorientation", handler);
+    setTimeout(function () { sensorStatus.textContent = got ? T.sensorOn : T.sensorNone; }, 2500);
+  }
+  document.getElementById("sensorButton").addEventListener("click", function () {
+    var DOE = window.DeviceOrientationEvent;
+    if (DOE && typeof DOE.requestPermission === "function") {
+      DOE.requestPermission().then(function (r) { if (r === "granted") attachOrientation(); else sensorStatus.textContent = T.sensorDenied; })
+        .catch(function () { sensorStatus.textContent = T.sensorDenied; });
+    } else if (DOE) { attachOrientation(); } else { sensorStatus.textContent = T.sensorDenied; }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        var lat = pos.coords.latitude, lon = pos.coords.longitude;
+        var inside = lat > MAP_BOUNDS.minLat && lat < MAP_BOUNDS.maxLat && lon > MAP_BOUNDS.minLon && lon < MAP_BOUNDS.maxLon;
+        if (inside) { state.lat = lat; state.lon = lon; recompute(); }
+        sensorStatus.textContent = inside ? T.geoInside : T.geoOutside;
+      }, function () { sensorStatus.textContent = T.geoDenied; }, { enableHighAccuracy: true, timeout: 10000 });
+    }
+  });
+
+  // ===== Engine self-tests (mirror GeoMathTest.kt) =====
+  function runTests() {
+    var p = { targetHeight: 10, k: 0.13 };
+    var ridge = function (lat, lon) { return lon >= 35.049 && lon <= 35.051 ? 200 : 0; };
+    var flat = function () { return 0; };
+    var cases = [
+      [T.testCurv, Math.abs(curvatureDropM(15000, 0.13) - 15.36) < 0.01],
+      [T.testWrap, Math.abs(angleDiffDeg(358, 2) - 4) < 1e-9],
+      [T.testEast, Math.abs(bearingDeg(32, 35, 32, 35.1) - 90) < 0.1],
+      [T.testRidge, evaluate(ridge, 32, 35, 1.7, { lat: 32, lon: 35.1, alt: 0 }, p).visibility === "obstructed"],
+      [T.testFlat, evaluate(flat, 32, 35, 1.7, { lat: 32, lon: 35.02, alt: 0 }, p).visibility === "visible"],
+      [T.testTol, Math.abs(toleranceDeg(2000, 60, 3) - 11.31) < 0.01]
+    ];
+    var ol = document.getElementById("tests");
+    cases.forEach(function (c) {
+      var li = document.createElement("li");
+      li.className = c[1] ? "pass" : "fail";
+      li.textContent = c[0] + " – " + (c[1] ? T.testPass : T.testFail);
+      ol.appendChild(li);
+    });
+  }
+
+  // ===== Download links: derived from <owner>.github.io/<repo>/ =====
+  (function () {
+    var host = window.location.hostname, dl = document.getElementById("downloadLink");
+    if (host.slice(-10) !== ".github.io") {
+      dl.setAttribute("aria-disabled", "true"); dl.removeAttribute("href");
+      document.getElementById("downloadNote").textContent = T.downloadOff;
+      document.getElementById("repoLink").parentNode.hidden = true;
+      return;
+    }
+    var owner = host.split(".")[0], repo = window.location.pathname.split("/")[1] || "point";
+    var base = "https://github.com/" + owner + "/" + repo;
+    dl.href = base + "/releases/latest/download/PointAndIdentify.apk";
+    document.getElementById("releasesLink").href = base + "/releases";
+    document.getElementById("repoLink").href = base;
+  })();
+
+  buildMapBase();
+  runTests();
+  setAzimuth(state.azimuth);
+  recompute();
+})();
+</script>
+</body>
+</html>

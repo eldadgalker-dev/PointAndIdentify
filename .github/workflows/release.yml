@@ -1,0 +1,72 @@
+# Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
+# This software is released under the BSD 3-Clause License.
+# See the LICENSE.txt file in the project root for full license information.
+# Version 1.1
+# Builds a signed release APK on every pushed tag "v*" and publishes it as a GitHub Release
+# with PointAndIdentify.apk and version.json, which the in-app update button reads.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Verify data manifest
+        run: python3 tools/verify_manifest.py
+
+      - name: Decode signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.POINT_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then echo "Secret POINT_KEYSTORE_B64 is missing"; exit 1; fi
+          echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "POINT_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
+      - name: Build release APK
+        env:
+          POINT_KEYSTORE_PASSWORD: ${{ secrets.POINT_KEYSTORE_PASSWORD }}
+          POINT_KEY_ALIAS: ${{ secrets.POINT_KEY_ALIAS }}
+          POINT_KEY_PASSWORD: ${{ secrets.POINT_KEY_PASSWORD }}
+        run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          gradle :app:assembleRelease \
+            -PversionCode=${{ github.run_number }} \
+            -PversionName="$VERSION_NAME" \
+            -Ppoint.githubOwner=${{ github.repository_owner }} \
+            -Ppoint.githubRepo=${{ github.event.repository.name }}
+
+      - name: Package release assets
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          if [ ! -f "$APK" ]; then echo "Signed APK not found (signing secrets missing?)"; exit 1; fi
+          cp "$APK" PointAndIdentify.apk
+          SHA=$(sha256sum PointAndIdentify.apk | cut -d' ' -f1)
+          printf '{"versionCode": %d, "versionName": "%s", "sha256": "%s"}\n' \
+            "${{ github.run_number }}" "${GITHUB_REF_NAME#v}" "$SHA" > version.json
+          cat version.json
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" PointAndIdentify.apk version.json \
+            --title "$GITHUB_REF_NAME" --generate-notes

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PointAndIdentify</string>
+
+    <string name="status_initializing">מאתחל מערכת…</string>
+    <string name="status_waiting_location">ממתין למיקום GPS…</string>
+    <string name="status_no_target">אין יעד גלוי בכיוון</string>
+    <string name="status_azimuth">אזימוט: %1$d°</string>
+    <string name="target_visible_details">טווח: %1$.1f ק״מ | אזימוט: %2$d°</string>
+    <string name="target_hidden_name">%1$s (מוסתר טופוגרפית)</string>
+    <string name="target_hidden_details">הסתרה בטווח %1$.1f ק״מ | אזימוט: %2$d°</string>
+    <string name="target_unknown_name">%1$s (אין נתוני שטח)</string>
+    <string name="photo_target_prefix">מטרה: %1$s</string>
+    <string name="photo_footer">%1$s | PointAndIdentify %2$s</string>
+
+    <string name="info_observer">צופה: %1$.5f, %2$.5f (±%3$d מ׳) | גובה עין: %4$s</string>
+    <string name="info_direction">כיוון: %1$d° (צפון אמת) | זווית אנכית: %2$+.1f°</string>
+    <string name="info_target">יעד: %1$s – %2$s | %3$.5f, %4$.5f | גובה: %5$s</string>
+    <string name="info_geometry">טווח: %1$.2f ק״מ | אזימוט: %2$.1f° | זווית ליעד: %3$+.2f° | מרווח: %4$s</string>
+    <string name="info_meters">%1$d מ׳</string>
+    <string name="info_none">–</string>
+
+    <string name="kind_settlement">יישוב</string>
+    <string name="kind_peak">הר / פסגה</string>
+    <string name="kind_tower">מגדל / תורן</string>
+    <string name="kind_lighthouse">מגדלור</string>
+    <string name="kind_chimney">ארובה</string>
+    <string name="kind_water_tower">מגדל מים</string>
+    <string name="kind_castle">מבצר / טירה</string>
+    <string name="kind_ruins">חורבה / אתר עתיק</string>
+    <string name="kind_monument">אנדרטה</string>
+    <string name="kind_other">ציון דרך</string>
+
+    <string name="compass_uncalibrated">מצפן לא מכויל – הנע את הטלפון בתנועת 8</string>
+    <string name="data_status">אריחי שטח: %1$d/%2$d | יעדים: %3$d</string>
+    <string name="data_offline">מצב לא מקוון – נתונים שמורים בלבד</string>
+
+    <string name="btn_capture">צילום</string>
+    <string name="btn_update">עדכון</string>
+
+    <string name="perm_missing">חסרות הרשאות מצלמה או מיקום</string>
+    <string name="camera_error">שגיאה באתחול המצלמה</string>
+    <string name="capture_error">שגיאת צילום</string>
+    <string name="photo_saved">התמונה נשמרה בגלריה</string>
+    <string name="photo_save_error">שמירת התמונה נכשלה</string>
+
+    <string name="update_checking">בודק עדכונים…</string>
+    <string name="update_none">הגרסה עדכנית (%1$s)</string>
+    <string name="update_available_title">גרסה חדשה זמינה</string>
+    <string name="update_available_msg">גרסה %1$s זמינה (מותקנת: %2$s). להוריד ולהתקין?</string>
+    <string name="update_downloading">מוריד עדכון… %1$d%%</string>
+    <string name="update_verify_failed">אימות קובץ העדכון נכשל</string>
+    <string name="update_error">בדיקת העדכון נכשלה</string>
+    <string name="update_allow_install">יש לאשר התקנה ממקור זה ולהקיש שוב על עדכון</string>
+    <string name="dialog_yes">כן</string>
+    <string name="dialog_no">לא</string>
+</resources>

@@ -1,0 +1,19 @@
+# Version 1.0
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+# Raw DEM input is never committed; only processed tiles under data/tiles are.
+tools/input/
+tools/__pycache__/
+.venv/

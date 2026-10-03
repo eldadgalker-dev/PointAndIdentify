@@ -1,0 +1,18 @@
+{
+ "coverage": {
+  "max_lat": 0.0,
+  "max_lon": 0.0,
+  "min_lat": 0.0,
+  "min_lon": 0.0
+ },
+ "sea_tiles": [],
+ "targets": {
+  "path": "targets.json",
+  "sha256": "2c5eb7097b5ee54c2bb13fffe8d94f6aa61be32f437e5b698f8368640f6e6086",
+  "version": 2
+ },
+ "tile_deg": 0.1,
+ "tile_samples": 361,
+ "tiles": {},
+ "version": 1790972476
+}
