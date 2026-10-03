@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 3.1
+# Version 3.2
 """Builds data/targets.json (settlements + aimable landmarks) from OpenStreetMap (Overpass API).
 
 Scope
@@ -39,6 +39,7 @@ import math
 import re
 import shutil
 import sys
+import time
 from pathlib import Path
 
 import numpy as np
@@ -47,7 +48,19 @@ import requests
 # =============================================================
 # Parameters
 # =============================================================
-OVERPASS_ENDPOINT = "https://overpass-api.de/api/interpreter"
+# Public Overpass instances, tried in order; a failure on one moves to the next.
+OVERPASS_ENDPOINTS = (
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+)
+# Overpass operators reject anonymous library user agents (HTTP 406/403); identify the client.
+HTTP_HEADERS = {
+    "User-Agent": "PointAndIdentify-data/3.2 (github.com/eldadgalker-dev/PointAndIdentify; eldad@galker.com)",
+    "Accept": "application/json",
+}
+ENDPOINT_PAUSE_S = 15                     # wait before trying the next instance
 CORE_AREA_FILTER = '["ISO3166-1"="IL"]["admin_level"="2"]'
 SEARCH_BBOX = (28.9, 33.6, 34.0, 36.7)    # deg (min_lat, min_lon, max_lat, max_lon), ESTIMATE: core + buffer
 NEIGHBOR_BUFFER_KM = 50.0                 # km, must match AppConfig.MAX_TARGET_RANGE_M / 1000
@@ -79,9 +92,26 @@ assert SEARCH_BBOX[0] < SEARCH_BBOX[2] and SEARCH_BBOX[1] < SEARCH_BBOX[3], "SEA
 
 
 def overpass(query: str) -> list:
-    r = requests.post(OVERPASS_ENDPOINT, data={"data": query}, timeout=TIMEOUT_S + 60)
-    r.raise_for_status()
-    return r.json().get("elements", [])
+    """Runs the query on the first instance that answers with valid JSON; logs every failure."""
+    errors = []
+    for i, url in enumerate(OVERPASS_ENDPOINTS):
+        if i:
+            time.sleep(ENDPOINT_PAUSE_S)
+        try:
+            r = requests.post(url, data={"data": query}, headers=HTTP_HEADERS, timeout=TIMEOUT_S + 60)
+            if r.status_code != 200:
+                snippet = " ".join(r.text.split())[:300]
+                raise RuntimeError(f"HTTP {r.status_code}: {snippet}")
+            data = r.json()
+            if "remark" in data and not data.get("elements"):
+                # Overpass reports server-side timeouts / memory limits as a remark with no elements.
+                raise RuntimeError(f"server remark: {data['remark'][:300]}")
+            print(f"overpass: {url} -> {len(data.get('elements', []))} elements")
+            return data.get("elements", [])
+        except (requests.RequestException, ValueError, RuntimeError) as e:
+            print(f"overpass: {url} failed: {e}")
+            errors.append(f"{url}: {e}")
+    raise RuntimeError("All Overpass instances failed:\n  " + "\n  ".join(errors))
 
 
 def selectors(scope: str) -> str:
