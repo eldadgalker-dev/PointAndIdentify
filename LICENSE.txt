@@ -36,4 +36,6 @@ sources and keep their original licenses:
 
 - Place and landmark data: (c) OpenStreetMap contributors, available under the
   Open Database License (ODbL) 1.0.
-- Elevation data: SRTM, NASA / USGS, public domain.
+- Elevation data: Terrain Tiles open dataset (Mapzen / Tilezen), derived from
+  SRTM (NASA / USGS) and other sources; attribution to the underlying sources
+  is required as listed in the Terrain Tiles attribution document.

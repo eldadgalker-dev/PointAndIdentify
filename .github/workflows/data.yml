@@ -1,0 +1,76 @@
+# Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
+# This software is released under the BSD 3-Clause License.
+# See the LICENSE.txt file in the project root for full license information.
+# Version 1.0
+# Builds all app data automatically and commits it to main:
+#   targets (OpenStreetMap, Overpass) -> elevation (Terrain Tiles, downloaded) -> terrain tiles -> manifest
+# Runs when the data tools change, monthly, and on manual run (setup_once.ps1 starts the first run).
+# The app reads the committed files directly from GitHub; no new APK is needed for new data.
+name: data
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/*.py"
+      - "tools/requirements.txt"
+      - ".github/workflows/data.yml"
+  schedule:
+    - cron: "0 3 1 * *"   # 03:00 UTC on the 1st of every month
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install tools
+        run: pip install -r tools/requirements.txt
+
+      - name: Targets from OpenStreetMap (3 attempts, Overpass may be busy)
+        run: |
+          for i in 1 2 3; do
+            python tools/build_targets.py && exit 0
+            echo "Attempt $i failed, retrying in 120 s"; sleep 120
+          done
+          exit 1
+
+      - name: Download elevation cells
+        run: python tools/fetch_dem.py --out "$RUNNER_TEMP/hgt"
+
+      - name: Build terrain tiles and manifest
+        # Cells the elevation source does not have (HTTP 404) are open sea; fetch_dem.py fails on any other error.
+        run: python tools/build_dem_tiles.py --input "$RUNNER_TEMP/hgt" --missing-as-sea
+
+      - name: Verify manifest
+        run: python tools/verify_manifest.py
+
+      - name: Commit data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data app/src/main/assets/targets.json tools/anchors.json
+          if git diff --cached --quiet; then
+            echo "Data unchanged"
+            exit 0
+          fi
+          git commit -m "Data update $(date -u +%Y-%m-%d)"
+          # A push from the PC may have landed meanwhile: rebase and retry.
+          for i in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1

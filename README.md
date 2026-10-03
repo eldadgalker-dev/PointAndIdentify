@@ -26,29 +26,36 @@
 | `tools/` | סקריפטי Python לבניית הנתונים |
 | `.github/workflows/` | בניית Release ובדיקת נתונים |
 
-## 3. הקמה ראשונה
+## 3. הפעלה אוטומטית
 
-1. ב-`gradle.properties` הגדר `point.githubOwner` לשם המשתמש שלך (לבנייה מקומית; ב-CI הערך נלקח אוטומטית).
-2. צור Gradle wrapper: `gradle wrapper --gradle-version 8.9` (או פתיחה ב-Android Studio).
-3. צור מפתח חתימה – שמור אותו מחוץ למאגר ואל תאבד אותו; עדכונים עתידיים חייבים אותו מפתח:
-   `keytool -genkeypair -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias point`
-4. צור את המאגר: `gh repo create PointAndIdentify --public --source=. --push`
-5. הגדר Secrets במאגר: `POINT_KEYSTORE_B64` (פלט `base64 -w0 release.jks`), `POINT_KEYSTORE_PASSWORD`, `POINT_KEY_ALIAS`, `POINT_KEY_PASSWORD`.
-6. פרסום גרסה: `git tag v1.0.0 && git push origin v1.0.0`.
-7. התקנה ראשונה: הורד `PointAndIdentify.apk` מעמוד ה-Release. מכאן והלאה – כפתור **עדכון** באפליקציה.
+### 3.1 הקמה חד-פעמית (Windows)
+1. התקנות: Git for Windows, GitHub CLI (`gh`), ו-Android Studio (לכלי `keytool`).
+2. גרור את ה-ZIP אל `scripts/update_github.bat`. הקוד עולה ל-GitHub.
+3. הפעל את `scripts/setup_once.bat` פעם אחת. הכלי:
+   1. יוצר מפתח חתימה ב-`%USERPROFILE%\PointAndIdentify-signing` (יש לגבות תיקייה זו).
+   2. מגדיר את ארבעת ה-Secrets מסוג `POINT_*`.
+   3. מפעיל את GitHub Pages מ-`main` / `/docs`.
+   4. מפעיל לראשונה את בניית הנתונים ואת בניית הגרסה.
+4. התקנה בטלפון: `https://github.com/eldadgalker-dev/PointAndIdentify/releases/latest/download/PointAndIdentify.apk`
 
-## 4. בניית נתונים
+### 3.2 מה קורה אוטומטית אחר כך
+| אירוע | מה רץ | תוצאה |
+|---|---|---|
+| קוד האפליקציה השתנה ב-`main` | `release.yml` | APK חתום ו-Release בגרסה `<versionBase>.<מספר הרצה>`; הטלפונים מתעדכנים בכפתור **עדכון** |
+| כלי הנתונים השתנו, או ה-1 בכל חודש | `data.yml` | יעדים מ-OSM, הורדת גבהים, אריחים ומניפסט; commit אוטומטי ל-`data/` |
+| קובץ נתונים השתנה | `data-check.yml` | אימות שהמניפסט תואם לקבצים |
 
-1. `pip install -r tools/requirements.txt`
-2. יעדים: `python tools/build_targets.py`. נוצרים `data/targets.json` ו-`tools/anchors.json`.
-3. הורד קבצי SRTM1 (`.hgt`, 3601×3601) לתאים N29–N33 × E033–E036, לתיקייה `tools/input/` (לא נשמרת בגיט).
-4. אריחים: `python tools/build_dem_tiles.py --input tools/input`. הכלי מעבד רק את רצועת ה-buffer ומדווח על תאים חסרים.
-5. אם נערך קובץ נתונים ידנית: `python tools/build_manifest.py`
-6. Commit ו-push של `data/` (וגם `app/src/main/assets/targets.json`).
+עדכון שוטף: גרירת ZIP חדש אל `update_github.bat`. אין צורך ב-tag.
 
-**היקף הנתונים:** כל היעדים בעלי שם בתחום ISO3166-1=IL ב-OSM, ובנוסף יעדים במדינות השכנות שנמצאים עד 50 ק"מ מיישוב כלשהו בתחום. 50 ק"מ הוא טווח היעד של האפליקציה, ולכן יישוב רחוק יותר לא יכול להיבחר כיעד. אותו כלל קובע אילו אריחי גובה נשמרים. הפרמטר: `--buffer-km`.
+גרסה ראשית ומשנית: `point.versionBase` ב-`gradle.properties`.
 
-**ים ונתונים חסרים:** אריח שמופיע ב-`sea.json` מטופל כגובה 0. אריח שאינו ברשימת היבשה ואינו ברשימת הים מטופל כלא ידוע. תא ללא קובץ HGT נשאר לא ידוע, אלא אם הועבר `--missing-as-sea` (ב-SRTM אין קבצים לתאי ים פתוח).
+## 4. נתונים
+
+1. **יעדים:** `tools/build_targets.py`. כל היעדים בעלי שם בתחום ISO3166-1=IL ב-OSM, ובנוסף יעדים במדינות השכנות עד 50 ק"מ מיישוב בתחום. 50 ק"מ הוא טווח היעד של האפליקציה, ולכן יעד רחוק יותר לא יכול להיבחר. הפרמטר: `--buffer-km`.
+2. **גבהים:** `tools/fetch_dem.py` מוריד את תאי ה-1° הדרושים מ-Terrain Tiles (ללא חשבון). תא שאינו קיים במקור (HTTP 404) מטופל כים; כל שגיאה אחרת עוצרת את הריצה.
+3. **אריחים:** `tools/build_dem_tiles.py` חותך רק את רצועת ה-buffer, ובונה את `manifest.json`.
+4. **ים ונתונים חסרים:** אריח ב-`sea.json` מטופל כגובה 0; אריח שאינו ברשימת היבשה ואינו ברשימת הים מטופל כלא ידוע.
+5. הרצה ידנית אפשרית: `pip install -r tools/requirements.txt`, ואז שלושת הכלים לפי הסדר (`fetch_dem.py --out <dir>`, ואז `build_dem_tiles.py --input <dir> --missing-as-sea`).
 
 ## 5. מגבלות
 
@@ -68,7 +75,7 @@
 
 ## 8. ייחוס
 
-1. **SRTM**: NASA / USGS, נחלת הכלל.
+1. **גבהים**: Terrain Tiles (Mapzen / Tilezen), נגזר מ-SRTM ומקורות נוספים; ייחוס המקורות נדרש לפי מסמך הייחוס של הפרויקט.
 2. **יעדים**: © OpenStreetMap contributors, רישיון ODbL.
 
 </div>
