@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.capture
 
 import android.content.ContentValues
@@ -46,11 +46,14 @@ class PhotoExporter(private val context: Context) {
 
     private val renderer = OverlayRenderer()
 
-    /** Must be called on a background thread; closes the ImageProxy. */
-    suspend fun export(image: ImageProxy, content: OverlayContent, meta: PhotoMeta): Uri =
+    /**
+     * Must be called on a background thread; closes the ImageProxy.
+     * extraZoom > 1 applies the extra calculated zoom: the centre 1/extraZoom of the frame is kept (no upscaling).
+     */
+    suspend fun export(image: ImageProxy, content: OverlayContent, meta: PhotoMeta, extraZoom: Double = 1.0): Uri =
         withContext(Dispatchers.Default) {
             val rotation = image.imageInfo.rotationDegrees
-            val bitmap = image.use { decodeMutable(it) }
+            val bitmap = image.use { cropCentre(decodeMutable(it), extraZoom) }
             try {
                 burnOverlay(bitmap, rotation, content)
                 val tmp = File(context.cacheDir, "capture_tmp.jpg")
@@ -61,6 +64,17 @@ class PhotoExporter(private val context: Context) {
                 bitmap.recycle()
             }
         }
+
+    /** Centre crop for the calculated zoom; returns the source itself when no crop is needed. */
+    private fun cropCentre(src: Bitmap, extraZoom: Double): Bitmap {
+        if (extraZoom <= 1.001) return src
+        val cw = (src.width / extraZoom).toInt().coerceAtLeast(1)
+        val ch = (src.height / extraZoom).toInt().coerceAtLeast(1)
+        val cropped = Bitmap.createBitmap(src, (src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
+        if (cropped !== src) src.recycle()
+        // The overlay is drawn onto this bitmap, so it must be mutable.
+        return if (cropped.isMutable) cropped else cropped.copy(Bitmap.Config.ARGB_8888, true).also { cropped.recycle() }
+    }
 
     private fun decodeMutable(image: ImageProxy): Bitmap {
         val buffer = image.planes[0].buffer

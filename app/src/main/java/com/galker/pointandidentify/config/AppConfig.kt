@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -52,11 +52,12 @@ object AppConfig {
 
     // ===== Parameters: zoom =====
     const val ZOOM_MIN_FALLBACK = 1.0         // used until the camera reports its zoom range
+    const val EXTRA_ZOOM_MAX = 4.0            // extra calculated (digital) zoom factor applied beyond the camera's own maximum
 
     // ===== Parameters: language =====
     const val LANGUAGE_ENGLISH_TAG = "en"
     const val LANGUAGE_HEBREW_TAG = "he"
-    const val LANGUAGE_DEFAULT_TAG = LANGUAGE_ENGLISH_TAG // used until the user picks a language in Settings
+    const val LANGUAGE_DEFAULT_TAG = LANGUAGE_HEBREW_TAG // used until the user picks a language in Settings
 
     // ===== Parameters: sensors =====
     const val AZIMUTH_SMOOTHING_ALPHA = 0.15f // low-pass factor, 0..1 (lower = smoother)
@@ -96,6 +97,7 @@ object AppConfig {
         require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {
             "LANGUAGE_DEFAULT_TAG must be a supported language"
         }
+        require(EXTRA_ZOOM_MAX >= 1.0) { "EXTRA_ZOOM_MAX must be at least 1" }
         require(ZOOM_MIN_FALLBACK > 0) { "ZOOM_MIN_FALLBACK must be positive" }
         require(COMPASS_FIELD_MIN_UT in 0.0..COMPASS_FIELD_MAX_UT) { "Invalid compass field range" }
         require(COMPASS_CHECK_DURATION_MS > 0 && COMPASS_SPREAD_MAX_DEG > 0) { "Invalid compass check parameters" }

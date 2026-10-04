@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -14,8 +14,10 @@ import android.os.Looper
 import android.os.Process
 import android.util.Log
 import android.view.View
+import android.view.GestureDetector
+import android.view.MotionEvent
 import android.view.ScaleGestureDetector
-import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -55,6 +57,7 @@ import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.atan
 import kotlin.math.ln
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -74,21 +77,19 @@ class MainActivity : AppCompatActivity() {
     private var zoomLive: LiveData<ZoomState>? = null
     private var minZoom = AppConfig.ZOOM_MIN_FALLBACK
     private var maxZoom = AppConfig.ZOOM_MIN_FALLBACK
+    private var camZoom = AppConfig.ZOOM_MIN_FALLBACK // zoom ratio currently set on the camera
+    private var extraZoom = 1.0                        // calculated (digital) zoom on top of the camera zoom, >= 1
     private lateinit var scaleDetector: ScaleGestureDetector
+    private lateinit var tapDetector: GestureDetector
+    private var updateStatusLine: String? = null       // update progress line shown in the status block
     private var exiting = false
 
-    /** Camera zoom state -> zoom bar (value, labels) and the ViewModel (which narrows the selection window). */
+    /** Camera zoom state -> zoom bar and ViewModel. */
     private val zoomObserver = Observer<ZoomState> { st ->
         minZoom = st.minZoomRatio.toDouble()
         maxZoom = st.maxZoomRatio.toDouble()
-        val z = st.zoomRatio.toDouble()
-        vm.onZoomChanged(z)
-        binding.zoomBar.valueLabel = getString(R.string.zoom_label, z)
-        binding.zoomBar.minLabel = getString(R.string.zoom_label, minZoom)
-        binding.zoomBar.maxLabel = getString(R.string.zoom_label, maxZoom)
-        binding.zoomBar.isEnabled = maxZoom > minZoom + 1e-6
-        val t = zoomToSlider(z).toFloat()
-        if (abs(binding.zoomBar.value - t) > 0.001f) binding.zoomBar.value = t
+        camZoom = st.zoomRatio.toDouble()
+        refreshZoomUi()
     }
 
     private val requiredPermissions: Array<String> by lazy {
@@ -117,10 +118,10 @@ class MainActivity : AppCompatActivity() {
         photoExporter = PhotoExporter(applicationContext)
 
         binding.captureButton.setOnClickListener { capture() }
-        binding.updateButton.setOnClickListener { onUpdateClicked() }
         binding.exitButton.setOnClickListener { confirmExit() }
-        binding.identifyButton.setOnClickListener { showIdentify() }
+        binding.settingsButton.icon = GearDrawable()
         binding.settingsButton.setOnClickListener { showSettings() }
+        binding.helpButton.setOnClickListener { showHelp() }
         binding.compassView.northLabel = getString(R.string.compass_north)
 
         // The data text sits just above the bottom buttons: follow their measured position.
@@ -131,13 +132,21 @@ class MainActivity : AppCompatActivity() {
         binding.zoomBar.onValueChanged = { setZoom(sliderToZoom(it.toDouble())) }
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val current = camera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: return false
-                setZoom(current * detector.scaleFactor)
+                if (camera == null) return false
+                setZoom(camZoom * extraZoom * detector.scaleFactor)
+                return true
+            }
+        })
+        // A tap inside the crosshair shows the identify list (replaces the former identify button).
+        tapDetector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (binding.overlayView.isInsideCrosshair(e.rawX, e.rawY)) showIdentify()
                 return true
             }
         })
         binding.viewFinder.setOnTouchListener { _, event ->
             scaleDetector.onTouchEvent(event)
+            tapDetector.onTouchEvent(event)
             true
         }
 
@@ -181,7 +190,7 @@ class MainActivity : AppCompatActivity() {
         if (inset > 0f) binding.overlayView.bottomInsetPx = inset
     }
 
-    /** Settings dialog; currently holds the language switch (English <-> Hebrew). */
+    /** Settings dialog: language switch (Hebrew <-> English) and update check. */
     private fun showSettings() {
         var dialog: AlertDialog? = null
         val pad = (16 * resources.displayMetrics.density).toInt()
@@ -192,14 +201,31 @@ class MainActivity : AppCompatActivity() {
                 LanguageManager.toggle(this@MainActivity) // recreates this Activity with the new language
             }
         }
-        val box = FrameLayout(this).apply {
+        val checkUpdate = MaterialButton(this).apply {
+            text = getString(R.string.settings_check_update)
+            setOnClickListener {
+                dialog?.dismiss()
+                onUpdateClicked()
+            }
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(switchLanguage)
+            addView(checkUpdate)
         }
         dialog = AlertDialog.Builder(this)
             .setTitle(R.string.settings_title)
             .setView(box)
             .setNegativeButton(R.string.dialog_close, null)
+            .show()
+    }
+
+    private fun showHelp() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.help_title)
+            .setMessage(R.string.help_text)
+            .setPositiveButton(R.string.dialog_close, null)
             .show()
     }
 
@@ -230,16 +256,46 @@ class MainActivity : AppCompatActivity() {
 
     // ===== Zoom =====
 
-    /** Slider position 0..1 <-> zoom ratio, logarithmic so each slider step feels like the same magnification step. */
-    private fun sliderToZoom(t: Double): Double =
-        if (maxZoom > minZoom) minZoom * (maxZoom / minZoom).pow(t.coerceIn(0.0, 1.0)) else minZoom
+    /** Largest total zoom: the camera maximum times the extra calculated zoom. */
+    private fun totalMaxZoom(): Double = maxZoom * AppConfig.EXTRA_ZOOM_MAX
 
-    private fun zoomToSlider(z: Double): Double =
-        if (maxZoom > minZoom) (ln(z / minZoom) / ln(maxZoom / minZoom)).coerceIn(0.0, 1.0) else 0.0
+    /** Slider position 0..1 <-> total zoom ratio, logarithmic so each slider step feels like the same magnification step. */
+    private fun sliderToZoom(t: Double): Double {
+        val top = totalMaxZoom()
+        return if (top > minZoom) minZoom * (top / minZoom).pow(t.coerceIn(0.0, 1.0)) else minZoom
+    }
 
+    private fun zoomToSlider(z: Double): Double {
+        val top = totalMaxZoom()
+        return if (top > minZoom) (ln(z / minZoom) / ln(top / minZoom)).coerceIn(0.0, 1.0) else 0.0
+    }
+
+    /**
+     * Sets the total zoom. The camera takes as much as it can; the rest is the extra calculated zoom,
+     * applied as a scale of the preview (and as a centre crop of the saved photo).
+     */
     private fun setZoom(ratio: Double) {
         val cam = camera ?: return
-        cam.cameraControl.setZoomRatio(ratio.coerceIn(minZoom, maxZoom).toFloat())
+        val total = ratio.coerceIn(minZoom, totalMaxZoom())
+        val camPart = min(total, maxZoom)
+        camZoom = camPart
+        extraZoom = if (camPart > 0.0) total / camPart else 1.0
+        binding.viewFinder.scaleX = extraZoom.toFloat()
+        binding.viewFinder.scaleY = extraZoom.toFloat()
+        cam.cameraControl.setZoomRatio(camPart.toFloat())
+        refreshZoomUi()
+    }
+
+    /** Total zoom (camera x extra) -> zoom bar, labels and the ViewModel (which narrows the selection window). */
+    private fun refreshZoomUi() {
+        val z = camZoom * extraZoom
+        vm.onZoomChanged(z)
+        binding.zoomBar.valueLabel = getString(R.string.zoom_label, z)
+        binding.zoomBar.minLabel = getString(R.string.zoom_label, minZoom)
+        binding.zoomBar.maxLabel = getString(R.string.zoom_label, totalMaxZoom())
+        binding.zoomBar.isEnabled = totalMaxZoom() > minZoom + 1e-6
+        val t = zoomToSlider(z).toFloat()
+        if (abs(binding.zoomBar.value - t) > 0.001f) binding.zoomBar.value = t
     }
 
     private fun hasCorePermissions() = listOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -293,6 +349,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun capture() {
         val ic = imageCapture ?: return
+        val extra = extraZoom // zoom at the moment of the click, applied to this photo
         val state = vm.ui.value
         val content = buildPhotoContent(state)
         val t = state.target
@@ -311,7 +368,7 @@ class MainActivity : AppCompatActivity() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 lifecycleScope.launch {
                     val ok = try {
-                        photoExporter.export(image, content, meta)
+                        photoExporter.export(image, content, meta, extra)
                         true
                     } catch (e: Exception) {
                         Log.e(TAG, "Photo export failed", e)
@@ -343,8 +400,10 @@ class MainActivity : AppCompatActivity() {
         status.append('\n').append(compassStatusText(state.compass))
         if (state.offline) status.append('\n').append(getString(R.string.data_offline))
         if (!state.compassCalibrated) status.append('\n').append(getString(R.string.compass_uncalibrated))
+        updateStatusLine?.let { status.append('\n').append(it) }
         binding.dataStatusText.text = status
         binding.compassView.azimuthDeg = state.azimuthDeg?.toFloat()
+        binding.azimuthText.text = state.azimuthDeg?.let { getString(R.string.azimuth_value, it.roundToInt().mod(360)) } ?: ""
         handleCompassReport(state.compass)
     }
 
@@ -445,9 +504,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Data block shown on screen and burned into the photo, one group (row) per topic:
-     *   observer position / accuracy / altitude, camera direction (azimuth + vertical angle),
-     *   target kind / position / altitude, and target geometry (range, bearing, vertical angle, clearance).
+     * Data block shown on screen and burned into the photo, one group per topic, one fact per line:
+     *   observer position / accuracy / eye height, camera vertical angle,
+     *   target kind / height / position, and target geometry (range, azimuth, angle, clearance).
+     * The camera azimuth is shown under the compass and the zoom next to the zoom bar, not here.
      */
     private fun infoLines(state: UiState): List<String> {
         val groups = ArrayList<String>(4)
@@ -455,23 +515,19 @@ class MainActivity : AppCompatActivity() {
             groups.add(
                 listOf(
                     getString(R.string.info_observer_pos, fix.lat, fix.lon),
-                    getString(R.string.info_observer_acc, fix.horizontalAccuracyM.roundToInt(), altText(state.observerEyeAltM))
+                    getString(R.string.info_observer_acc, fix.horizontalAccuracyM.roundToInt()),
+                    getString(R.string.info_eye_height, altText(state.observerEyeAltM))
                 ).joinToString("\n")
             )
         }
-        state.azimuthDeg?.let { az ->
-            groups.add(
-                listOf(
-                    getString(R.string.info_direction, az.roundToInt().mod(360), state.cameraElevationDeg ?: 0.0),
-                    getString(R.string.info_zoom, state.zoomRatio)
-                ).joinToString("\n")
-            )
+        state.cameraElevationDeg?.let { elevation ->
+            groups.add(getString(R.string.info_vertical_angle, elevation))
         }
         state.target?.let { t ->
             groups.add(
                 listOf(
-                    getString(R.string.info_target_name, t.target.name),
-                    getString(R.string.info_target_kind, getString(kindLabel(t.target.targetKind)), altText(t.topAltM)),
+                    getString(R.string.info_target_kind, getString(kindLabel(t.target.targetKind))),
+                    getString(R.string.info_target_height, altText(t.topAltM)),
                     getString(R.string.info_target_pos, t.target.latitude, t.target.longitude)
                 ).joinToString("\n")
             )
@@ -479,8 +535,10 @@ class MainActivity : AppCompatActivity() {
                 ?: getString(R.string.info_none)
             groups.add(
                 listOf(
-                    getString(R.string.info_geometry_range, t.distanceM / 1000.0, t.bearingDeg),
-                    getString(R.string.info_geometry_angle, t.elevationAngleDeg ?: 0.0, clearance)
+                    getString(R.string.info_geometry_range, t.distanceM / 1000.0),
+                    getString(R.string.info_geometry_bearing, t.bearingDeg),
+                    getString(R.string.info_geometry_angle, t.elevationAngleDeg ?: 0.0),
+                    getString(R.string.info_clearance, clearance)
                 ).joinToString("\n")
             )
         }
@@ -519,17 +577,26 @@ class MainActivity : AppCompatActivity() {
         if (s is UpdateState.ReadyToInstall && s.apk.exists()) install(s.apk) else vm.checkForUpdate(silent = false)
     }
 
+    /** Update progress is a line in the status block (the update button now lives in Settings). */
+    private fun setUpdateStatus(line: String?) {
+        if (line == updateStatusLine) return
+        updateStatusLine = line
+        render(vm.ui.value)
+    }
+
     private fun renderUpdate(state: UpdateState) {
         when (state) {
-            UpdateState.Idle -> binding.updateButton.text = getString(R.string.btn_update)
-            UpdateState.Checking -> binding.updateButton.text = getString(R.string.update_checking)
-            is UpdateState.Downloading -> binding.updateButton.text = getString(R.string.update_downloading, state.percent)
+            UpdateState.Idle -> setUpdateStatus(null)
+            UpdateState.Checking -> setUpdateStatus(getString(R.string.update_checking))
+            is UpdateState.Downloading -> setUpdateStatus(getString(R.string.update_downloading, state.percent))
             is UpdateState.UpToDate -> {
+                setUpdateStatus(null)
                 // The automatic start-up check only speaks up when an update exists.
                 if (!vm.silentUpdateCheck) toast(getString(R.string.update_none, state.versionName))
                 vm.resetUpdateState()
             }
             is UpdateState.Available -> if (lastUpdateDialogFor != state.remote) {
+                setUpdateStatus(null)
                 lastUpdateDialogFor = state.remote
                 AlertDialog.Builder(this)
                     .setTitle(R.string.update_available_title)
@@ -551,17 +618,19 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
             is UpdateState.ReadyToInstall -> {
-                binding.updateButton.text = getString(R.string.btn_update)
+                setUpdateStatus(null)
                 if (autoInstallPromptedFor != state.apk) {
                     autoInstallPromptedFor = state.apk
                     install(state.apk)
                 }
             }
             UpdateState.VerifyFailed -> {
+                setUpdateStatus(null)
                 toast(getString(R.string.update_verify_failed))
                 vm.resetUpdateState()
             }
             UpdateState.Failed -> {
+                setUpdateStatus(null)
                 if (!vm.silentUpdateCheck) toast(getString(R.string.update_error))
                 vm.resetUpdateState()
             }

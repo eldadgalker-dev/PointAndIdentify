@@ -4,7 +4,7 @@
 # Version 1.1
 # Builds all app data automatically and commits it to main:
 #   targets (OpenStreetMap, Overpass) -> elevation (Terrain Tiles, downloaded) -> terrain tiles -> manifest
-# Runs when the data tools change, monthly, and on manual run (setup_once.ps1 starts the first run).
+# Runs when the data tools change, monthly, and on manual run.
 # The app reads the committed files directly from GitHub; no new APK is needed for new data.
 name: data
 

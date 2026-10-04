@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -9,6 +9,7 @@ import android.graphics.Canvas
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.View
+import kotlin.math.hypot
 
 /** Live overlay above the camera preview; drawing is delegated to OverlayRenderer. */
 class OverlayView @JvmOverloads constructor(
@@ -53,12 +54,22 @@ class OverlayView @JvmOverloads constructor(
         setLayerType(LAYER_TYPE_SOFTWARE, null)
     }
 
+    /** True when a screen point (raw coordinates) lies inside the crosshair, with a little slack for the finger. */
+    fun isInsideCrosshair(rawX: Float, rawY: Float): Boolean {
+        val loc = IntArray(2)
+        getLocationOnScreen(loc)
+        val dx = rawX - loc[0] - width / 2f
+        val dy = rawY - loc[1] - height / 2f
+        return hypot(dx, dy) <= renderer.crosshairOuterRadius(width, height, content.zoomRatio) * TAP_SLACK
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         renderer.draw(canvas, width, height, content, insets)
     }
 
     companion object {
+        private const val TAP_SLACK = 1.15f         // tap radius = crosshair outer radius times this
         private const val BOTTOM_INSET_DP = 80f      // fallback: capture button 60 dp + 20 dp margin
         private const val BOTTOM_GAP_MM = 1f         // data block sits this far above the bottom buttons
         private const val SIDE_EXTRA_MM = 1f         // data block is inset this much further from the side edges

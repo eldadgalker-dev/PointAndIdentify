@@ -6,22 +6,24 @@
     <string name="status_waiting_location">ממתין למיקום GPS…</string>
     <string name="status_no_target">אין יעד גלוי בכיוון</string>
     <string name="status_azimuth">אזימוט: %1$d°</string>
-    <string name="target_visible_details">טווח: %1$.1f ק״מ | אזימוט: %2$d°</string>
+    <string name="target_visible_details">טווח: %1$.1f ק״מ\nאזימוט: %2$d°</string>
     <string name="target_hidden_name">%1$s (מוסתר טופוגרפית)</string>
-    <string name="target_hidden_details">הסתרה בטווח %1$.1f ק״מ | אזימוט: %2$d°</string>
+    <string name="target_hidden_details">הסתרה בטווח %1$.1f ק״מ\nאזימוט: %2$d°</string>
     <string name="target_unknown_name">%1$s (אין נתוני שטח)</string>
     <string name="photo_target_prefix">מטרה: %1$s</string>
-    <string name="photo_footer">%1$s | PointAndIdentify %2$s</string>
+    <string name="photo_footer">%1$s\nPointAndIdentify %2$s</string>
 
-    <string name="info_observer_pos">צופה: %1$.5f, %2$.5f</string>
-    <string name="info_observer_acc">דיוק מיקום: ±%1$d מ׳ | גובה עין: %2$s</string>
-    <string name="info_direction">כיוון: %1$d° (צפון אמת) | זווית אנכית: %2$+.1f°</string>
-    <string name="info_zoom">זום: ×%1$.1f</string>
-    <string name="info_target_name">יעד: %1$s</string>
-    <string name="info_target_kind">סוג: %1$s | גובה: %2$s</string>
+    <string name="info_observer_pos">מיקום צופה: %1$.5f, %2$.5f</string>
+    <string name="info_observer_acc">דיוק מיקום: ±%1$d מ׳</string>
+    <string name="info_eye_height">גובה עין: %1$s</string>
+    <string name="info_vertical_angle">זווית אנכית: %1$+.1f°</string>
+    <string name="info_target_kind">סוג: %1$s</string>
+    <string name="info_target_height">גובה: %1$s</string>
     <string name="info_target_pos">מיקום יעד: %1$.5f, %2$.5f</string>
-    <string name="info_geometry_range">טווח: %1$.2f ק״מ | אזימוט ליעד: %2$.1f°</string>
-    <string name="info_geometry_angle">זווית ליעד: %1$+.2f° | מרווח ראייה: %2$s</string>
+    <string name="info_geometry_range">טווח: %1$.2f ק״מ</string>
+    <string name="info_geometry_bearing">אזימוט ליעד: %1$.1f°</string>
+    <string name="info_geometry_angle">זווית ליעד: %1$+.2f°</string>
+    <string name="info_clearance">מרווח ראייה: %1$s</string>
     <string name="info_meters">%1$d מ׳</string>
     <string name="info_none">–</string>
 
@@ -49,23 +51,34 @@
     <string name="compass_recheck">בדוק שוב</string>
     <string name="compass_continue">המשך</string>
     <string name="compass_uncalibrated">מצפן לא מכויל – הנע את הטלפון בתנועת 8</string>
-    <string name="data_status">אריחי שטח: %1$d/%2$d | יעדים: %3$d</string>
+    <string name="compass_north">צ</string>
+    <string name="azimuth_value">%1$d°</string>
+    <string name="data_status">אריחי שטח: %1$d/%2$d\nיעדים: %3$d</string>
     <string name="data_offline">מצב לא מקוון – נתונים שמורים בלבד</string>
 
     <string name="btn_capture">צילום</string>
     <string name="btn_update">עדכון</string>
     <string name="btn_exit">יציאה</string>
-    <string name="btn_identify">זיהוי</string>
+    <string name="btn_settings">הגדרות</string>
+    <string name="btn_help">עזרה</string>
+    <string name="btn_help_symbol">?</string>
     <string name="zoom_label">×%1$.1f</string>
     <string name="exit_title">יציאה</string>
     <string name="exit_msg">לכבות את האפליקציה לגמרי?</string>
     <string name="identify_title">מטרות בכוונת (זום ×%1$.1f)</string>
     <string name="identify_none">לא נמצאה מטרה בכוונת. כוון את הצלב אל יעד או הקטן את הזום.</string>
-    <string name="identify_line">%1$d. %2$s – %3$s\n    טווח %4$.1f ק״מ | סטייה מהצלב %5$.1f° | %6$s</string>
+    <string name="identify_line">%1$d. %2$s – %3$s\n    טווח %4$.1f ק״מ\n    סטייה מהצלב %5$.1f°\n    %6$s</string>
     <string name="identify_visible">גלוי</string>
     <string name="identify_hidden">מוסתר</string>
     <string name="identify_unknown">אין נתוני שטח</string>
     <string name="dialog_close">סגור</string>
+
+    <string name="settings_title">הגדרות</string>
+    <string name="settings_switch_language">שפה: עבור ל-English</string>
+    <string name="settings_check_update">בדוק עדכון גרסה</string>
+
+    <string name="help_title">עזרה</string>
+    <string name="help_text">PointAndIdentify מזהה את היעד שאליו מכוונת המצלמה (יישוב, הר, מגדל ועוד), ובודקת מול מודל גבהים אם הוא באמת נראה מהמקום שבו אתה עומד.\n\nכוונת\nכוון את מרכז הכוונת אל היעד. כוונת ירוקה: היעד גלוי בקו ראייה ישיר. כוונת אדומה: היעד מוסתר בידי השטח, או שאין נתוני שטח. הכוונת גדלה עם הזום.\n\nזיהוי\nלחיצה בתוך הכוונת מציגה את רשימת היעדים שנמצאים בכוונת, לפי סטייה מהמרכז.\n\nזום\nהסרגל בצד ימין: למטה המינימום ולמעלה המקסימום, וליד הידית מוצג הזום הנוכחי. אפשר גם לצבוט במסך. מעל הזום של המצלמה פועל זום נוסף מחושב (דיגיטלי), באיכות נמוכה יותר.\n\nמצפן\nבצד שמאל: החץ האדום מצביע לצפון אמת, והסימן הצהוב למעלה הוא כיוון המצלמה. מתחתיו מוצג כיוון המצלמה במעלות מצפון אמת.\n\nנתונים\nבתחתית המסך: מיקום הצופה ודיוקו, גובה עין, זווית אנכית, ופרטי היעד: סוג, גובה, מיקום, טווח, אזימוט, זווית ומרווח קו ראייה.\n\nצילום\nשומר תמונה בגלריה (DCIM/PointAndIdentify) עם הכוונת והנתונים, ועם מיקום וכיוון בנתוני התמונה (EXIF).\n\nהגדרות (גלגל השיניים)\nהחלפת שפה בין עברית לאנגלית, ובדיקת עדכון גרסה.\n\nיציאה\nסוגרת את האפליקציה לגמרי.\n\nמצפן לא מכויל: הנע את הטלפון בתנועת 8 באוויר, והתרחק ממתכת ומגנטים. דיוק הכיוון בטלפון הוא בערך ±3–5°.</string>
 
     <string name="perm_missing">חסרות הרשאות מצלמה או מיקום</string>
     <string name="camera_error">שגיאה באתחול המצלמה</string>
@@ -80,12 +93,7 @@
     <string name="update_downloading">מוריד עדכון… %1$d%%</string>
     <string name="update_verify_failed">אימות קובץ העדכון נכשל</string>
     <string name="update_error">בדיקת העדכון נכשלה</string>
-    <string name="update_allow_install">יש לאשר התקנה ממקור זה ולהקיש שוב על עדכון</string>
+    <string name="update_allow_install">יש לאשר התקנה ממקור זה ולהקיש שוב על בדיקת עדכון</string>
     <string name="dialog_yes">כן</string>
     <string name="dialog_no">לא</string>
-
-    <string name="btn_settings">הגדרות</string>
-    <string name="settings_title">הגדרות</string>
-    <string name="settings_switch_language">שפה: עבור ל-English</string>
-    <string name="compass_north">צ</string>
 </resources>

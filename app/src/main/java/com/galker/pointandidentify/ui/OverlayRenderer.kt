@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -53,15 +53,16 @@ data class OverlayInsets(
 class OverlayRenderer {
 
     // ===== Parameters (fractions of the shorter canvas edge) =====
-    private val crosshairRadiusRatio = 0.06f
-    private val crosshairArmRatio = 0.03f
+    private val crosshairRadiusRatio = 0.09f
+    private val crosshairArmRatio = 0.045f
     private val crosshairZoomExponent = 0.5 // crosshair scale = zoom ^ exponent (zoom below 1 does not shrink it)
-    private val crosshairScaleMax = 3.5f    // upper limit of the crosshair scale
+    private val crosshairScaleMax = 2.5f    // upper limit of the crosshair scale
     private val strokeRatio = 0.004f
     private val primaryTextRatio = 0.072f
     private val secondaryTextRatio = 0.046f
-    private val infoTextRatio = 0.04f
-    private val footerTextRatio = 0.03f
+    private val infoTextRatio = 0.06f
+    private val footerTextRatio = 0.045f
+    private val infoFitMin = 0.45f       // smallest shrink factor when the data block must fit under the crosshair
     private val marginRatio = 0.03f
     private val groupGapRatio = 0.012f      // vertical space on each side of a group divider
     private val dividerStrokeRatio = 0.002f
@@ -81,7 +82,7 @@ class OverlayRenderer {
         val cx = width / 2f
         val cy = height / 2f
         // Crosshair grows with the zoom so it stays easy to see against the magnified image.
-        val zoomScale = max(1.0, content.zoomRatio).pow(crosshairZoomExponent).toFloat().coerceAtMost(crosshairScaleMax)
+        val zoomScale = crosshairScale(content.zoomRatio)
         val r = unit * crosshairRadiusRatio * zoomScale
         val arm = unit * crosshairArmRatio * zoomScale
         val direction = if (content.rtl) TextDirectionHeuristics.RTL else TextDirectionHeuristics.LTR
@@ -102,9 +103,7 @@ class OverlayRenderer {
         primaryPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
         secondaryPaint.textSize = unit * secondaryTextRatio
         secondaryPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
-        infoPaint.textSize = unit * infoTextRatio
         infoPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
-        footerPaint.textSize = unit * footerTextRatio
         footerPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
 
         val margin = unit * marginRatio
@@ -130,17 +129,21 @@ class OverlayRenderer {
         // Data block at the bottom, stacked upwards: footer last, one row per info group above it.
         // ALIGN_NORMAL aligns to the start edge of the language: right for Hebrew, left for English.
         val gap = unit * groupGapRatio
-        val blocks = ArrayList<StaticLayout>()
-        for (group in content.infoLines) {
-            blocks.add(layout(group, infoPaint, blockWidth, Layout.Alignment.ALIGN_NORMAL, direction))
-        }
-        if (content.footer.isNotEmpty()) {
-            blocks.add(layout(content.footer, footerPaint, blockWidth, Layout.Alignment.ALIGN_NORMAL, direction))
+        val bottomGap = insets.bottomGapPx ?: margin
+        val bottomEdge = height - insets.bottomPx - bottomGap
+        // The block must not cover the crosshair: text shrinks (down to infoFitMin) until it fits below it.
+        val maxTotal = bottomEdge - (cy + r + arm + margin) - margin * 0.5f
+        var fit = 1f
+        var blocks = buildBlocks(content, blockWidth, direction, unit, fit)
+        var total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
+        var attempts = 0
+        while (blocks.isNotEmpty() && total > maxTotal && fit > infoFitMin && attempts < 4) {
+            fit = max(infoFitMin, fit * (maxTotal / total).coerceIn(0f, 1f))
+            blocks = buildBlocks(content, blockWidth, direction, unit, fit)
+            total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
+            attempts++
         }
         if (blocks.isNotEmpty()) {
-            val bottomGap = insets.bottomGapPx ?: margin
-            val bottomEdge = height - insets.bottomPx - bottomGap
-            val total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
             bandPaint.alpha = infoBackgroundAlpha
             canvas.drawRect(
                 0f, bottomEdge - total - margin * 0.5f,
@@ -158,6 +161,30 @@ class OverlayRenderer {
                 }
             }
         }
+    }
+
+    /** Crosshair scale for a zoom ratio: grows with zoom, never below 1, capped. */
+    private fun crosshairScale(zoomRatio: Double): Float =
+        max(1.0, zoomRatio).pow(crosshairZoomExponent).toFloat().coerceAtMost(crosshairScaleMax)
+
+    /** Outer radius of the crosshair (circle plus arms), px; used for tap hit-testing in the live view. */
+    fun crosshairOuterRadius(width: Int, height: Int, zoomRatio: Double): Float =
+        min(width, height) * (crosshairRadiusRatio + crosshairArmRatio) * crosshairScale(zoomRatio)
+
+    /** One StaticLayout per info group (plus the footer), with text sizes scaled by fit. */
+    private fun buildBlocks(
+        content: OverlayContent, width: Int, direction: TextDirectionHeuristic, unit: Float, fit: Float
+    ): ArrayList<StaticLayout> {
+        infoPaint.textSize = unit * infoTextRatio * fit
+        footerPaint.textSize = unit * footerTextRatio * fit
+        val blocks = ArrayList<StaticLayout>()
+        for (group in content.infoLines) {
+            blocks.add(layout(group, infoPaint, width, Layout.Alignment.ALIGN_NORMAL, direction))
+        }
+        if (content.footer.isNotEmpty()) {
+            blocks.add(layout(content.footer, footerPaint, width, Layout.Alignment.ALIGN_NORMAL, direction))
+        }
+        return blocks
     }
 
     private fun layout(

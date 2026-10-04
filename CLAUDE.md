@@ -15,7 +15,7 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 ## 2. Repository facts
 
 1. Android app, Kotlin, Gradle (AGP 8.6, Kotlin 2.0, KSP, Room, CameraX). Package and applicationId: `com.galker.pointandidentify`. Never change the applicationId: installed apps could no longer update.
-2. Layout: `app/` app code, `tools/` Python data tools, `data/` published data (manifest, terrain tiles, targets), `docs/` help page (GitHub Pages) and notes, `scripts/` Windows ZIP upload tools, `.github/workflows/` CI.
+2. Layout: `app/` app code, `tools/` Python data tools, `data/` published data (manifest, terrain tiles, targets), `docs/` help page (GitHub Pages) and notes, `.github/workflows/` CI. The old Windows ZIP upload scripts were archived outside the repository; updates are made directly in this clone.
 3. Workflows:
    1. `release.yml`: on every app-code change in `main` (and manual). Builds a signed APK, version `point.versionBase` + run number, creates tag and GitHub Release with `PointAndIdentify.apk` + `version.json`. Needs the four `POINT_*` secrets.
    2. `data.yml`: on data-tool changes, monthly, manual. Builds targets (Overpass), downloads elevation, cuts tiles, commits `data/`. Its bot commits to `main`.
@@ -43,10 +43,9 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 
 ## 5. Do not
 
-1. Do not run `scripts/update_github.*` in this clone: it mirrors a ZIP and runs `git reset --hard`, which discards work.
-2. Do not force-push or rewrite published history.
-3. Do not edit files under `data/` by hand; change `tools/` and let `data.yml` rebuild.
-4. Do not change the signing setup or the secret names without the user's approval.
+1. Do not force-push or rewrite published history.
+2. Do not edit files under `data/` by hand; change `tools/` and let `data.yml` rebuild.
+3. Do not change the signing setup or the secret names without the user's approval.
 
 ## 6. Backlog (agreed with the user, not implemented yet)
 

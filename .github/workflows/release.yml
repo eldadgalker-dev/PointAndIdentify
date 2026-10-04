@@ -5,7 +5,7 @@
 # Builds a signed release APK automatically whenever app code reaches main (or on manual run),
 # creates tag v<versionBase>.<run number> and publishes a GitHub Release with
 # PointAndIdentify.apk and version.json, which the in-app update button reads.
-# Requires the four POINT_* signing secrets (set once by setup_once.ps1).
+# Requires the four POINT_* signing secrets (repository secrets, set once).
 name: release
 
 on:
@@ -46,7 +46,7 @@ jobs:
           [ -z "$KEY_ALIAS" ] && missing="$missing POINT_KEY_ALIAS"
           [ -z "$KEY_PASSWORD" ] && missing="$missing POINT_KEY_PASSWORD"
           if [ -n "$missing" ]; then
-            echo "::error::Missing signing secrets:$missing. Run setup_once.bat once on your PC."
+            echo "::error::Missing signing secrets:$missing. Add them under the repository Settings > Secrets and variables > Actions."
             exit 1
           fi
 

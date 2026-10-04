@@ -6,22 +6,24 @@
     <string name="status_waiting_location">Waiting for GPS location…</string>
     <string name="status_no_target">No visible target in this direction</string>
     <string name="status_azimuth">Azimuth: %1$d°</string>
-    <string name="target_visible_details">Range: %1$.1f km | Azimuth: %2$d°</string>
+    <string name="target_visible_details">Range: %1$.1f km\nAzimuth: %2$d°</string>
     <string name="target_hidden_name">%1$s (hidden by terrain)</string>
-    <string name="target_hidden_details">Obstructed at %1$.1f km | Azimuth: %2$d°</string>
+    <string name="target_hidden_details">Obstructed at %1$.1f km\nAzimuth: %2$d°</string>
     <string name="target_unknown_name">%1$s (no terrain data)</string>
     <string name="photo_target_prefix">Target: %1$s</string>
-    <string name="photo_footer">%1$s | PointAndIdentify %2$s</string>
+    <string name="photo_footer">%1$s\nPointAndIdentify %2$s</string>
 
-    <string name="info_observer_pos">Observer: %1$.5f, %2$.5f</string>
-    <string name="info_observer_acc">Position accuracy: ±%1$d m | Eye height: %2$s</string>
-    <string name="info_direction">Heading: %1$d° (true north) | Vertical angle: %2$+.1f°</string>
-    <string name="info_zoom">Zoom: ×%1$.1f</string>
-    <string name="info_target_name">Target: %1$s</string>
-    <string name="info_target_kind">Type: %1$s | Height: %2$s</string>
+    <string name="info_observer_pos">Observer position: %1$.5f, %2$.5f</string>
+    <string name="info_observer_acc">Position accuracy: ±%1$d m</string>
+    <string name="info_eye_height">Eye height: %1$s</string>
+    <string name="info_vertical_angle">Vertical angle: %1$+.1f°</string>
+    <string name="info_target_kind">Type: %1$s</string>
+    <string name="info_target_height">Height: %1$s</string>
     <string name="info_target_pos">Target position: %1$.5f, %2$.5f</string>
-    <string name="info_geometry_range">Range: %1$.2f km | Azimuth to target: %2$.1f°</string>
-    <string name="info_geometry_angle">Angle to target: %1$+.2f° | Clearance: %2$s</string>
+    <string name="info_geometry_range">Range: %1$.2f km</string>
+    <string name="info_geometry_bearing">Azimuth to target: %1$.1f°</string>
+    <string name="info_geometry_angle">Angle to target: %1$+.2f°</string>
+    <string name="info_clearance">Clearance: %1$s</string>
     <string name="info_meters">%1$d m</string>
     <string name="info_none">–</string>
 
@@ -50,20 +52,22 @@
     <string name="compass_continue">Continue</string>
     <string name="compass_uncalibrated">Compass not calibrated – move the phone in a figure-8</string>
     <string name="compass_north">N</string>
-    <string name="data_status">Terrain tiles: %1$d/%2$d | Targets: %3$d</string>
+    <string name="azimuth_value">%1$d°</string>
+    <string name="data_status">Terrain tiles: %1$d/%2$d\nTargets: %3$d</string>
     <string name="data_offline">Offline mode – stored data only</string>
 
     <string name="btn_capture">Capture</string>
     <string name="btn_update">Update</string>
     <string name="btn_exit">Exit</string>
-    <string name="btn_identify">Identify</string>
     <string name="btn_settings">Settings</string>
+    <string name="btn_help">Help</string>
+    <string name="btn_help_symbol">?</string>
     <string name="zoom_label">×%1$.1f</string>
     <string name="exit_title">Exit</string>
     <string name="exit_msg">Shut the app down completely?</string>
     <string name="identify_title">Targets in the crosshair (zoom ×%1$.1f)</string>
     <string name="identify_none">No target found in the crosshair. Aim the cross at a target or reduce the zoom.</string>
-    <string name="identify_line">%1$d. %2$s – %3$s\n    Range %4$.1f km | Offset from cross %5$.1f° | %6$s</string>
+    <string name="identify_line">%1$d. %2$s – %3$s\n    Range %4$.1f km\n    Offset from cross %5$.1f°\n    %6$s</string>
     <string name="identify_visible">Visible</string>
     <string name="identify_hidden">Hidden</string>
     <string name="identify_unknown">No terrain data</string>
@@ -71,6 +75,10 @@
 
     <string name="settings_title">Settings</string>
     <string name="settings_switch_language">Language: switch to עברית</string>
+    <string name="settings_check_update">Check for updates</string>
+
+    <string name="help_title">Help</string>
+    <string name="help_text">PointAndIdentify identifies the target the camera is pointed at (settlement, mountain, tower and more) and checks against a terrain model whether it is really visible from where you stand.\n\nCrosshair\nAim the center of the crosshair at the target. Green crosshair: the target is in direct line of sight. Red crosshair: the target is hidden by terrain, or there is no terrain data. The crosshair grows with the zoom.\n\nIdentify\nTap inside the crosshair to list the targets inside it, ranked by offset from the center.\n\nZoom\nThe bar on the right: minimum at the bottom, maximum at the top, with the current zoom next to the handle. You can also pinch the screen. Beyond the camera\'s own zoom, an extra calculated (digital) zoom applies, at lower quality.\n\nCompass\nOn the left: the red arrow points to true north and the yellow mark at the top is the camera direction. Below it is the camera heading in degrees from true north.\n\nData\nAt the bottom: observer position and accuracy, eye height, vertical angle, and the target details: type, height, position, range, azimuth, angle and line-of-sight clearance.\n\nCapture\nSaves a photo to the gallery (DCIM/PointAndIdentify) with the crosshair and data burned in, and position and direction in the photo metadata (EXIF).\n\nSettings (gear icon)\nSwitch the language between Hebrew and English, and check for app updates.\n\nExit\nCloses the app completely.\n\nCompass not calibrated: move the phone in a figure-8 in the air and stay away from metal and magnets. Heading accuracy on a phone is about ±3–5°.</string>
 
     <string name="perm_missing">Camera or location permission is missing</string>
     <string name="camera_error">Camera initialization error</string>
@@ -85,7 +93,7 @@
     <string name="update_downloading">Downloading update… %1$d%%</string>
     <string name="update_verify_failed">Update file verification failed</string>
     <string name="update_error">Update check failed</string>
-    <string name="update_allow_install">Allow installation from this source, then tap Update again</string>
+    <string name="update_allow_install">Allow installation from this source, then check for updates again</string>
     <string name="dialog_yes">Yes</string>
     <string name="dialog_no">No</string>
 </resources>
