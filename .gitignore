@@ -17,3 +17,10 @@ keystore.properties
 tools/input/
 tools/__pycache__/
 .venv/
+# Local-only files in the project root (delivery zips, protocol notes, root copies of scripts/)
+/*.zip
+/SKILL.md
+/setup_once.bat
+/setup_once.ps1
+/update_github.bat
+/update_github.ps1
