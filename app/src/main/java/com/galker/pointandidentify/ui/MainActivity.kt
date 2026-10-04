@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.7
+// Version 1.8
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -13,6 +13,9 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.DialogInterface
 import android.os.Process
 import android.text.InputType
@@ -24,6 +27,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -371,10 +375,44 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
+    /** Help: overview, glossary of the on-screen terms, license, and the APK download link (selectable and copyable). */
     private fun showHelp() {
+        val density = resources.displayMetrics.density
+        val pad = (16 * density).toInt()
+        val apkUrl = AppConfig.RELEASE_LATEST_URL + "/" + AppConfig.RELEASE_APK_ASSET
+        val textColor = com.google.android.material.color.MaterialColors.getColor(
+            binding.root, com.google.android.material.R.attr.colorOnSurface
+        )
+        fun body(text: CharSequence, selectable: Boolean = true) = TextView(this).apply {
+            this.text = text
+            setTextColor(textColor)
+            textSize = 15f
+            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            setTextIsSelectable(selectable)
+            setPadding(0, (8 * density).toInt(), 0, (8 * density).toInt())
+        }
+        val link = body(apkUrl).apply { textDirection = View.TEXT_DIRECTION_LTR }
+        val copy = MaterialButton(this).apply {
+            text = getString(R.string.btn_copy_link)
+            setOnClickListener {
+                val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                cm.setPrimaryClip(ClipData.newPlainText("PointAndIdentify APK", apkUrl))
+                toast(getString(R.string.link_copied))
+            }
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad / 2, pad, pad / 2)
+            addView(body(getString(R.string.help_text)))
+            addView(body(getString(R.string.help_glossary)))
+            addView(body(getString(R.string.help_license)))
+            addView(body(getString(R.string.help_install)))
+            addView(link)
+            addView(copy)
+        }
         AlertDialog.Builder(this)
             .setTitle(R.string.help_title)
-            .setMessage(R.string.help_text)
+            .setView(ScrollView(this).apply { addView(box) })
             .setPositiveButton(R.string.dialog_close, null)
             .show()
     }
@@ -738,7 +776,14 @@ class MainActivity : AppCompatActivity() {
         val primary = if (state.target != null) getString(R.string.photo_target_prefix, live.primary) else live.primary
         val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
         val footer = getString(R.string.photo_footer, time, updater().installedVersionName)
-        return live.copy(primary = primary, footer = footer)
+        // The saved photo shows the compass too (on screen it is a separate view).
+        return live.copy(
+            primary = primary, footer = footer,
+            drawCompass = true,
+            compassAzimuthDeg = state.azimuthDeg?.toFloat(),
+            compassAzimuthText = state.azimuthDeg?.let { getString(R.string.azimuth_value, it.roundToInt().mod(360)) } ?: "",
+            northLabel = getString(R.string.compass_north)
+        )
     }
 
     // ===== Self-update =====

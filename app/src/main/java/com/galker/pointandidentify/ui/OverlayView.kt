@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.7
+// Version 1.8
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -60,7 +60,8 @@ class OverlayView @JvmOverloads constructor(
             sideExtraPx = mm(SIDE_EXTRA_MM),
             reservedPx = resources.displayMetrics.density * ZOOM_BAR_RESERVED_DP,
             reservedOnLeft = zoomBarOnLeft,
-            topPx = topInsetPx
+            topPx = topInsetPx,
+            titleReservedPx = resources.displayMetrics.density * TITLE_RESERVED_DP
         )
 
     private fun mm(value: Float): Float =
@@ -98,6 +99,7 @@ class OverlayView @JvmOverloads constructor(
     }
 
     companion object {
+        private const val TITLE_RESERVED_DP = 34f   // zoom-bar track strip (16 dp inset + 13 dp thumb radius + slack)
         private const val TAP_SLACK = 1.15f         // tap radius = crosshair outer radius times this
         private const val BOTTOM_INSET_DP = 80f      // fallback: capture button 60 dp + 20 dp margin
         private const val BOTTOM_GAP_MM = 1f         // data block sits this far above the bottom buttons

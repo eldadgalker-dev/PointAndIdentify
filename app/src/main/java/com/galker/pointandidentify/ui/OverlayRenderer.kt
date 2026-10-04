@@ -1,12 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.7
+// Version 1.8
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
 import android.text.TextDirectionHeuristic
@@ -28,7 +29,11 @@ data class OverlayContent(
     val footer: String = "",
     val visible: Boolean = false,
     val zoomRatio: Double = 1.0, // camera zoom; the crosshair grows with it
-    val rtl: Boolean = true      // paragraph direction of the UI language (Hebrew = true)
+    val rtl: Boolean = true,     // paragraph direction of the UI language (Hebrew = true)
+    val drawCompass: Boolean = false,        // true for the saved photo (on screen the compass is a separate view)
+    val compassAzimuthDeg: Float? = null,    // camera heading for the photo compass
+    val compassAzimuthText: String = "",     // text shown under the photo compass
+    val northLabel: String = "N"
 )
 
 /**
@@ -39,6 +44,7 @@ data class OverlayContent(
  *  reservedPx      : width kept free at one side edge (zoom bar); the data block is laid out beside it
  *  reservedOnLeft  : which edge the reserved strip is on
  *  topPx           : space kept free at the top (status block); the target title is pinned just below it
+ *  titleReservedPx : width of the zoom-bar track strip that the target title must not cover (on the bar side only)
  */
 data class OverlayInsets(
     val bottomPx: Float = 0f,
@@ -46,7 +52,8 @@ data class OverlayInsets(
     val sideExtraPx: Float = 0f,
     val reservedPx: Float = 0f,
     val reservedOnLeft: Boolean = false,
-    val topPx: Float = 0f
+    val topPx: Float = 0f,
+    val titleReservedPx: Float = 0f
 )
 
 /**
@@ -64,9 +71,14 @@ class OverlayRenderer {
     private val strokeRatio = 0.004f
     private val primaryTextRatio = 0.072f
     private val secondaryTextRatio = 0.046f
-    private val infoTextRatio = 0.07f
-    private val footerTextRatio = 0.052f
-    private val infoFitMin = 0.45f       // smallest shrink factor when the data block must fit under the crosshair
+    private val infoTextRatio = 0.04f       // fixed: the text size never depends on the content, so nothing jumps
+    private val footerTextRatio = 0.03f
+    private val titleFitMin = 0.6f          // the target name shrinks to fit one line, down to this factor
+    private val fullDataLines = 11          // lines of a full data block (observer 3, angle 1, target 3, geometry 4)
+    private val fullDataGroups = 4          // groups of a full data block; the compass is placed above this height
+    private val compassRadiusRatio = 0.084f // photo compass
+    private val compassGapRatio = 0.01f
+    private val azimuthTextRatio = 0.05f
     private val marginRatio = 0.03f
     private val groupGapRatio = 0.012f      // vertical space on each side of a group divider
     private val dividerStrokeRatio = 0.002f
@@ -112,9 +124,12 @@ class OverlayRenderer {
         footerPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
 
         val margin = unit * marginRatio
-        // Title is centred, so the reserved right strip is mirrored on the left to keep it centred on the crosshair.
-        val titleLeft = margin + insets.reservedPx
-        val titleWidth = (width - 2 * titleLeft).toInt().coerceAtLeast(1)
+        // The title may use the whole width except the zoom-bar track strip, and is centred in what is left.
+        val titleLeft = margin + if (insets.reservedOnLeft) insets.titleReservedPx else 0f
+        val titleWidth = (width - 2 * margin - insets.titleReservedPx).toInt().coerceAtLeast(1)
+        // One line if possible: shrink the target name to fit instead of wrapping it.
+        val desired = Layout.getDesiredWidth(content.primary, primaryPaint)
+        if (desired > titleWidth) primaryPaint.textSize *= max(titleFitMin, titleWidth / desired)
         // Data block: inset from both sides, and its right end stops before the reserved strip.
         val blockLeft = margin + insets.sideExtraPx + if (insets.reservedOnLeft) insets.reservedPx else 0f
         val blockWidth = (width - 2 * (margin + insets.sideExtraPx) - insets.reservedPx).toInt().coerceAtLeast(1)
@@ -136,20 +151,8 @@ class OverlayRenderer {
         val gap = unit * groupGapRatio
         val bottomGap = insets.bottomGapPx ?: margin
         val bottomEdge = height - insets.bottomPx - bottomGap
-        // The block must not cover the crosshair: text shrinks (down to infoFitMin) until it fits below the crosshair
-        // at zoom 1. The reference is zoom-independent, so the text size does not change while zooming.
-        val refCrosshair = unit * (crosshairRadiusRatio + crosshairArmRatio)
-        val maxTotal = bottomEdge - (cy + refCrosshair + margin) - margin * 0.5f
-        var fit = 1f
-        var blocks = buildBlocks(content, blockWidth, direction, unit, fit)
-        var total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
-        var attempts = 0
-        while (blocks.isNotEmpty() && total > maxTotal && fit > infoFitMin && attempts < 4) {
-            fit = max(infoFitMin, fit * (maxTotal / total).coerceIn(0f, 1f))
-            blocks = buildBlocks(content, blockWidth, direction, unit, fit)
-            total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
-            attempts++
-        }
+        val blocks = buildBlocks(content, blockWidth, direction, unit)
+        val total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
         var dataTop = bottomEdge
         if (blocks.isNotEmpty()) {
             dataTop = bottomEdge - total - margin * 0.5f
@@ -170,7 +173,42 @@ class OverlayRenderer {
                 }
             }
         }
-        return dataTop
+
+        if (content.drawCompass) drawPhotoCompass(canvas, content, unit, margin, dataTop)
+
+        // Stable top for views that sit above the block: computed from a full block, so it does not move
+        // when lines appear or disappear. Never lower than the real block (long lines may wrap).
+        val lineHeight = infoPaint.fontMetrics.let { it.descent - it.ascent }
+        val stableTotal = fullDataLines * lineHeight + 2f * gap * (fullDataGroups - 1)
+        return min(dataTop, bottomEdge - stableTotal - margin * 0.5f)
+    }
+
+    private val compassPainter = CompassPainter()
+    private val azimuthPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE
+        isFakeBoldText = true
+        textAlign = Paint.Align.CENTER
+    }
+    private val azimuthPlate = RectF()
+
+    /** Photo only: compass dial with the heading under it, on the left, just above the data block. */
+    private fun drawPhotoCompass(canvas: Canvas, content: OverlayContent, unit: Float, margin: Float, dataTop: Float) {
+        val r = unit * compassRadiusRatio
+        val gap = unit * compassGapRatio
+        azimuthPaint.textSize = unit * azimuthTextRatio
+        val fm = azimuthPaint.fontMetrics
+        val plateH = (fm.descent - fm.ascent) + gap
+        val plateBottom = dataTop - gap
+        val plateTop = plateBottom - plateH
+        val cx = margin + r
+        val cy = plateTop - gap - r
+        compassPainter.draw(canvas, cx, cy, r, unit * 0.004f, content.compassAzimuthDeg, content.northLabel)
+        if (content.compassAzimuthText.isNotEmpty()) {
+            bandPaint.alpha = titleBackgroundAlpha + 40
+            azimuthPlate.set(cx - r, plateTop, cx + r, plateBottom)
+            canvas.drawRect(azimuthPlate, bandPaint)
+            canvas.drawText(content.compassAzimuthText, cx, plateTop + gap / 2f - fm.ascent, azimuthPaint)
+        }
     }
 
     /** Crosshair scale for a zoom ratio: grows with zoom, never below 1, capped. */
@@ -181,12 +219,12 @@ class OverlayRenderer {
     fun crosshairOuterRadius(width: Int, height: Int, zoomRatio: Double): Float =
         min(width, height) * (crosshairRadiusRatio + crosshairArmRatio) * crosshairScale(zoomRatio)
 
-    /** One StaticLayout per info group (plus the footer), with text sizes scaled by fit. */
+    /** One StaticLayout per info group (plus the footer). */
     private fun buildBlocks(
-        content: OverlayContent, width: Int, direction: TextDirectionHeuristic, unit: Float, fit: Float
+        content: OverlayContent, width: Int, direction: TextDirectionHeuristic, unit: Float
     ): ArrayList<StaticLayout> {
-        infoPaint.textSize = unit * infoTextRatio * fit
-        footerPaint.textSize = unit * footerTextRatio * fit
+        infoPaint.textSize = unit * infoTextRatio
+        footerPaint.textSize = unit * footerTextRatio
         val blocks = ArrayList<StaticLayout>()
         for (group in content.infoLines) {
             blocks.add(layout(group, infoPaint, width, Layout.Alignment.ALIGN_NORMAL, direction))
