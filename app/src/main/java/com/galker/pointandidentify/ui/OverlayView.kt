@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -19,7 +19,7 @@ class OverlayView @JvmOverloads constructor(
     private val renderer = OverlayRenderer()
 
     // ===== Parameters =====
-    /** Space kept free above the bottom edge for the capture button, px. */
+    /** Space kept free above the bottom edge for the capture button and zoom slider, px. */
     var bottomInsetPx: Float = resources.displayMetrics.density * BOTTOM_INSET_DP
         set(value) {
             field = value
@@ -45,6 +45,6 @@ class OverlayView @JvmOverloads constructor(
     }
 
     companion object {
-        private const val BOTTOM_INSET_DP = 128f // capture button 64 dp + 48 dp margin + spacing
+        private const val BOTTOM_INSET_DP = 150f // capture button 60 dp + 20 dp margin + zoom slider ~52 dp + spacing
     }
 }

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.sensors
 
 import android.content.Context
@@ -18,11 +18,13 @@ import kotlin.math.asin
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 data class Orientation(
     val trueAzimuthDeg: Double,   // camera optical axis, clockwise from true north
     val cameraElevationDeg: Double, // camera axis above (+) / below (-) the horizon; -90 = phone flat, screen up
-    val calibrated: Boolean
+    val calibrated: Boolean,
+    val fieldStrengthUt: Double? = null // smoothed magnetometer field magnitude, uT; null until first sample
 )
 
 /**
@@ -50,12 +52,15 @@ class OrientationProvider(context: Context) : SensorEventListener {
     @Volatile
     private var declinationDeg = 0.0
     @Volatile
+    private var fieldUt: Double? = null
+    @Volatile
     private var magAccuracy = SensorManager.SENSOR_STATUS_UNRELIABLE
 
     private val _orientation = MutableStateFlow<Orientation?>(null)
     val orientation: StateFlow<Orientation?> = _orientation
 
     val isAvailable: Boolean get() = rotationSensor != null
+    val hasMagnetometer: Boolean get() = magneticSensor != null
 
     fun start() {
         rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
@@ -67,6 +72,7 @@ class OrientationProvider(context: Context) : SensorEventListener {
         sensorManager.unregisterListener(this)
         initialized = false
         initializedElevation = false
+        fieldUt = null // stale after a pause: restart the smoothing from a fresh sample
     }
 
     /** Magnetic declination (east positive) converts magnetic to true north. */
@@ -77,6 +83,14 @@ class OrientationProvider(context: Context) : SensorEventListener {
     }
 
     override fun onSensorChanged(event: SensorEvent) {
+        if (event.sensor.type == Sensor.TYPE_MAGNETIC_FIELD) {
+            // Field magnitude is rotation-independent; a value far from Earth's ~25-65 uT means interference.
+            val v = event.values
+            val magnitude = sqrt((v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).toDouble())
+            val prev = fieldUt
+            fieldUt = if (prev == null) magnitude else prev + AppConfig.COMPASS_FIELD_SMOOTHING_ALPHA * (magnitude - prev)
+            return
+        }
         if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
 
         SensorManager.getRotationMatrixFromVector(rotation, event.values)
@@ -111,7 +125,8 @@ class OrientationProvider(context: Context) : SensorEventListener {
         _orientation.value = Orientation(
             trueAzimuthDeg = filtered,
             cameraElevationDeg = smoothElevation,
-            calibrated = magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM
+            calibrated = magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM,
+            fieldStrengthUt = fieldUt
         )
     }
 

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -10,6 +10,10 @@ import androidx.lifecycle.viewModelScope
 import com.galker.pointandidentify.PointApp
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.data.dem.DemTileRepository
+import com.galker.pointandidentify.domain.Candidate
+import com.galker.pointandidentify.domain.CompassCheck
+import com.galker.pointandidentify.domain.CompassReport
+import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.LineOfSightCalculator
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
@@ -29,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -41,6 +46,9 @@ data class UiState(
     val compassCalibrated: Boolean = true,
     val cameraElevationDeg: Double? = null,
     val target: TargetEvaluation? = null,
+    val candidates: List<Candidate> = emptyList(), // targets inside the crosshair window, best first
+    val zoomRatio: Double = 1.0,
+    val compass: CompassReport = CompassReport(CompassVerdict.CHECKING),
     val fix: ObserverFix? = null,
     val observerEyeAltM: Double? = null,
     val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
@@ -85,7 +93,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val update: StateFlow<UpdateState> = _update
 
     @Volatile
-    var hfovDeg: Double = AppConfig.DEFAULT_HFOV_DEG
+    var hfovDeg: Double = AppConfig.DEFAULT_HFOV_DEG // un-zoomed horizontal FOV
+
+    private val zoom = MutableStateFlow(AppConfig.ZOOM_MIN_FALLBACK)
+
+    /** True while an automatic (start-up) update check runs: "up to date" and network errors stay silent. */
+    @Volatile
+    var silentUpdateCheck = false
+        private set
+
+    private var startupChecksDone = false
+    private var compassJob: Job? = null
 
     private var lastLosFix: ObserverFix? = null
     private var lastFetchFix: ObserverFix? = null
@@ -115,15 +133,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         viewModelScope.launch {
-            combine(orientationProvider.orientation.filterNotNull(), evaluations) { o, evals -> o to evals }
+            combine(orientationProvider.orientation.filterNotNull(), evaluations, zoom) { o, evals, z -> Triple(o, evals, z) }
                 .sample(AppConfig.UI_UPDATE_INTERVAL_MS)
-                .collect { (o, evals) ->
-                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, hfovDeg)
+                .collect { (o, evals, z) ->
+                    // Zoom narrows the field of view, and with it the crosshair window.
+                    val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
+                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, o.cameraElevationDeg)
                     _ui.value = _ui.value.copy(
                         azimuthDeg = o.trueAzimuthDeg,
                         compassCalibrated = o.calibrated,
                         cameraElevationDeg = o.cameraElevationDeg,
-                        target = selection.best
+                        target = selection.best,
+                        candidates = selection.candidates,
+                        zoomRatio = z
                     )
                 }
         }
@@ -131,6 +153,54 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startLocation() = locationProvider.start()
     fun stopLocation() = locationProvider.stop()
+
+    fun onZoomChanged(ratio: Double) {
+        if (ratio > 0.0) zoom.value = ratio
+    }
+
+    /** Full stop used by the exit button: no sensor or location listener may outlive the Activity. */
+    fun shutdown() {
+        compassJob?.cancel()
+        locationProvider.stop()
+        orientationProvider.stop()
+    }
+
+    // ===== Start-up checks =====
+
+    /** Runs once per process after permissions are granted: compass health, then update check. */
+    fun startStartupChecks() {
+        if (startupChecksDone) return
+        startupChecksDone = true
+        runCompassCheck()
+        checkForUpdate(silent = true)
+    }
+
+    /**
+     * Samples the orientation sensors for COMPASS_CHECK_DURATION_MS and rates them
+     * (field strength, calibration accuracy, azimuth stability). The phone should be held still.
+     */
+    fun runCompassCheck() {
+        compassJob?.cancel()
+        _ui.value = _ui.value.copy(compass = CompassReport(CompassVerdict.CHECKING))
+        compassJob = viewModelScope.launch {
+            if (!orientationProvider.isAvailable || !orientationProvider.hasMagnetometer) {
+                _ui.value = _ui.value.copy(compass = CompassReport(CompassVerdict.NO_SENSOR))
+                return@launch
+            }
+            val azimuths = ArrayList<Double>()
+            var lastField: Double? = null
+            var lastCalibrated = false
+            // collect() never completes on a StateFlow: the timeout is what ends the sampling window.
+            withTimeoutOrNull(AppConfig.COMPASS_CHECK_DURATION_MS) {
+                orientationProvider.orientation.filterNotNull().collect { o ->
+                    azimuths.add(o.trueAzimuthDeg)
+                    lastField = o.fieldStrengthUt ?: lastField
+                    lastCalibrated = o.calibrated
+                }
+            }
+            _ui.value = _ui.value.copy(compass = CompassCheck.evaluate(azimuths, lastField, lastCalibrated))
+        }
+    }
 
     private fun onFix(fix: ObserverFix) {
         _ui.value = _ui.value.copy(fix = fix, phase = if (dataReady) Phase.READY else _ui.value.phase)
@@ -188,11 +258,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ===== Self-update =====
 
-    fun checkForUpdate() {
+    fun checkForUpdate(silent: Boolean = false) {
         val current = _update.value
         // ReadyToInstall is handled by the Activity directly (install retry), never re-checked here.
         if (current is UpdateState.Checking || current is UpdateState.Downloading) return
         if (current is UpdateState.ReadyToInstall && current.apk.exists()) return
+        silentUpdateCheck = silent
         _update.value = UpdateState.Checking
         viewModelScope.launch {
             _update.value = try {
@@ -227,8 +298,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
-        locationProvider.stop()
-        orientationProvider.stop()
+        shutdown()
         super.onCleared()
     }
 }

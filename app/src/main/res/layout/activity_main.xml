@@ -17,42 +17,99 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Status block (data, compass, offline) on a dark plate for legibility. -->
     <TextView
         android:id="@+id/dataStatusText"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:shadowColor="@android:color/black"
-        android:shadowRadius="4"
+        android:layout_margin="8dp"
+        android:background="#99000000"
+        android:lineSpacingMultiplier="1.1"
+        android:padding="8dp"
         android:textAlignment="viewStart"
         android:textColor="@android:color/white"
         android:textDirection="rtl"
-        android:textSize="13sp"
-        app:layout_constraintEnd_toStartOf="@id/updateButton"
+        android:textSize="17sp"
+        app:layout_constraintEnd_toStartOf="@id/topButtons"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/updateButton"
-        style="@style/Widget.Material3.Button.TonalButton"
+    <LinearLayout
+        android:id="@+id/topButtons"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_margin="12dp"
-        android:text="@string/btn_update"
+        android:layout_margin="8dp"
+        android:orientation="vertical"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/exitButton"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_exit"
+            android:textSize="16sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/updateButton"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_update"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <!-- Zoom: label + slider on a logarithmic scale (0..1 maps to the camera's min..max zoom ratio).
+         The slider is forced LTR so that dragging right always means zoom in. -->
+    <TextView
+        android:id="@+id/zoomText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="12dp"
+        android:background="#99000000"
+        android:padding="6dp"
+        android:textColor="@android:color/white"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="@id/zoomSlider"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@id/zoomSlider" />
+
+    <com.google.android.material.slider.Slider
+        android:id="@+id/zoomSlider"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:layoutDirection="ltr"
+        android:valueFrom="0.0"
+        android:valueTo="1.0"
+        app:layout_constraintBottom_toTopOf="@id/captureButton"
+        app:layout_constraintEnd_toStartOf="@id/zoomText"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/captureButton"
-        android:layout_width="140dp"
-        android:layout_height="64dp"
-        android:layout_marginBottom="48dp"
+        android:layout_width="150dp"
+        android:layout_height="60dp"
+        android:layout_marginBottom="20dp"
         android:backgroundTint="#D32F2F"
         android:text="@string/btn_capture"
         android:textColor="@android:color/white"
-        android:textSize="18sp"
+        android:textSize="20sp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/identifyButton"
+        android:layout_width="130dp"
+        android:layout_height="60dp"
+        android:layout_marginLeft="16dp"
+        android:text="@string/btn_identify"
+        android:textSize="20sp"
+        app:layout_constraintBottom_toBottomOf="@id/captureButton"
+        app:layout_constraintLeft_toRightOf="@id/captureButton"
+        app:layout_constraintTop_toTopOf="@id/captureButton" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

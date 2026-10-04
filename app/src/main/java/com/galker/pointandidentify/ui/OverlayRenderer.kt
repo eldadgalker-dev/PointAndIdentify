@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -15,7 +15,8 @@ import kotlin.math.min
 
 /**
  * Texts drawn on top of the camera image.
- * infoLines: observer / direction / target data block, drawn right-aligned (RTL start) near the bottom.
+ * infoLines: groups of the observer / direction / target data block (each element may hold several
+ * lines), drawn right-aligned (RTL start) near the bottom, one group per row separated by a divider.
  */
 data class OverlayContent(
     val primary: String,
@@ -36,12 +37,15 @@ class OverlayRenderer {
     private val crosshairRadiusRatio = 0.06f
     private val crosshairArmRatio = 0.03f
     private val strokeRatio = 0.004f
-    private val primaryTextRatio = 0.05f
-    private val secondaryTextRatio = 0.033f
-    private val infoTextRatio = 0.028f
-    private val footerTextRatio = 0.024f
+    private val primaryTextRatio = 0.072f
+    private val secondaryTextRatio = 0.046f
+    private val infoTextRatio = 0.04f
+    private val footerTextRatio = 0.03f
     private val marginRatio = 0.03f
-    private val infoBackgroundAlpha = 110   // 0..255, dark band behind the data block for legibility
+    private val groupGapRatio = 0.012f      // vertical space on each side of a group divider
+    private val dividerStrokeRatio = 0.002f
+    private val infoBackgroundAlpha = 160   // 0..255, dark band behind the data block for legibility
+    private val titleBackgroundAlpha = 120  // 0..255, dark plate behind the target name
 
     private val crosshairPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val primaryPaint = TextPaint(Paint.ANTI_ALIAS_FLAG)
@@ -49,6 +53,7 @@ class OverlayRenderer {
     private val infoPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
     private val footerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(220, 220, 220) }
     private val bandPaint = Paint().apply { color = Color.BLACK }
+    private val dividerPaint = Paint().apply { color = Color.argb(120, 255, 255, 255) }
 
     /** bottomInsetPx: space kept free at the bottom (e.g. above the capture button in the live view). */
     fun draw(canvas: Canvas, width: Int, height: Int, content: OverlayContent, bottomInsetPx: Float = 0f) {
@@ -69,6 +74,7 @@ class OverlayRenderer {
         canvas.drawLine(cx, cy + r * 0.4f, cx, cy + r + arm, crosshairPaint)
 
         primaryPaint.color = if (content.visible) Color.YELLOW else Color.rgb(255, 160, 120)
+        primaryPaint.isFakeBoldText = true
         primaryPaint.textSize = unit * primaryTextRatio
         primaryPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
         secondaryPaint.textSize = unit * secondaryTextRatio
@@ -86,25 +92,34 @@ class OverlayRenderer {
         val primary = layout(content.primary, primaryPaint, textWidth, Layout.Alignment.ALIGN_CENTER)
         val secondaryTop = cy - r - arm - margin - secondary.height
         val primaryTop = secondaryTop - primary.height
+        if (content.primary.isNotEmpty() || content.secondary.isNotEmpty()) {
+            bandPaint.alpha = titleBackgroundAlpha
+            canvas.drawRect(0f, primaryTop - margin * 0.4f, width.toFloat(), secondaryTop + secondary.height + margin * 0.4f, bandPaint)
+        }
         drawLayout(canvas, primary, margin, primaryTop)
         drawLayout(canvas, secondary, margin, secondaryTop)
 
-        // Data block at the bottom, stacked upwards: footer last, info lines above it.
+        // Data block at the bottom, stacked upwards: footer last, one row per info group above it.
         // ALIGN_NORMAL with an RTL heuristic aligns to the right edge.
-        var bottom = height - bottomInsetPx - margin
+        val gap = unit * groupGapRatio
         val blocks = ArrayList<StaticLayout>()
+        for (group in content.infoLines) blocks.add(layout(group, infoPaint, textWidth, Layout.Alignment.ALIGN_NORMAL))
         if (content.footer.isNotEmpty()) blocks.add(layout(content.footer, footerPaint, textWidth, Layout.Alignment.ALIGN_NORMAL))
-        if (content.infoLines.isNotEmpty()) {
-            blocks.add(0, layout(content.infoLines.joinToString("\n"), infoPaint, textWidth, Layout.Alignment.ALIGN_NORMAL))
-        }
         if (blocks.isNotEmpty()) {
-            val total = blocks.sumOf { it.height } + margin * 0.3f * (blocks.size - 1)
+            val bottomEdge = height - bottomInsetPx - margin
+            val total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
             bandPaint.alpha = infoBackgroundAlpha
-            canvas.drawRect(0f, bottom - total - margin * 0.5f, width.toFloat(), bottom + margin * 0.5f, bandPaint)
-            for (b in blocks.asReversed()) {
-                bottom -= b.height
-                drawLayout(canvas, b, margin, bottom)
-                bottom -= margin * 0.3f
+            canvas.drawRect(0f, bottomEdge - total - margin * 0.5f, width.toFloat(), bottomEdge + margin * 0.5f, bandPaint)
+            dividerPaint.strokeWidth = unit * dividerStrokeRatio
+            var y = bottomEdge
+            for ((i, b) in blocks.asReversed().withIndex()) {
+                y -= b.height
+                drawLayout(canvas, b, margin, y)
+                if (i < blocks.size - 1) {
+                    val dividerY = y - gap
+                    canvas.drawLine(margin, dividerY, width - margin, dividerY, dividerPaint)
+                    y -= 2f * gap
+                }
             }
         }
     }

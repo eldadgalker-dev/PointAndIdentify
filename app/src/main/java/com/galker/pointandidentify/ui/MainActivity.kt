@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -9,7 +9,11 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.Process
 import android.util.Log
+import android.view.ScaleGestureDetector
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -23,15 +27,21 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.ZoomState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.galker.pointandidentify.R
 import com.galker.pointandidentify.capture.PhotoExporter
 import com.galker.pointandidentify.capture.PhotoMeta
+import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.databinding.ActivityMainBinding
+import com.galker.pointandidentify.domain.CompassReport
+import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.TargetKind
 import com.galker.pointandidentify.domain.Visibility
 import com.galker.pointandidentify.update.RemoteVersion
@@ -39,7 +49,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.abs
 import kotlin.math.atan
+import kotlin.math.ln
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 /** UI shell only: camera binding, permissions, rendering of ViewModel state. No domain logic here. */
@@ -53,6 +66,26 @@ class MainActivity : AppCompatActivity() {
     private var imageCapture: ImageCapture? = null
     private var lastUpdateDialogFor: RemoteVersion? = null
     private var autoInstallPromptedFor: File? = null // installer is auto-launched once per APK; later via button
+
+    private var camera: Camera? = null
+    private var zoomLive: LiveData<ZoomState>? = null
+    private var minZoom = AppConfig.ZOOM_MIN_FALLBACK
+    private var maxZoom = AppConfig.ZOOM_MIN_FALLBACK
+    private lateinit var scaleDetector: ScaleGestureDetector
+    private var lastCompassReport: CompassReport? = null // identity-compared: each finished check is a new object
+    private var exiting = false
+
+    /** Camera zoom state -> label, slider position and the ViewModel (which narrows the selection window). */
+    private val zoomObserver = Observer<ZoomState> { st ->
+        minZoom = st.minZoomRatio.toDouble()
+        maxZoom = st.maxZoomRatio.toDouble()
+        val z = st.zoomRatio.toDouble()
+        vm.onZoomChanged(z)
+        binding.zoomText.text = getString(R.string.zoom_label, z)
+        binding.zoomSlider.isEnabled = maxZoom > minZoom + 1e-6
+        val t = zoomToSlider(z).toFloat()
+        if (abs(binding.zoomSlider.value - t) > 0.001f) binding.zoomSlider.value = t
+    }
 
     private val requiredPermissions: Array<String> by lazy {
         buildList {
@@ -81,6 +114,24 @@ class MainActivity : AppCompatActivity() {
 
         binding.captureButton.setOnClickListener { capture() }
         binding.updateButton.setOnClickListener { onUpdateClicked() }
+        binding.exitButton.setOnClickListener { confirmExit() }
+        binding.identifyButton.setOnClickListener { showIdentify() }
+
+        // Zoom: slider (log scale) and pinch gesture both end in setZoom().
+        binding.zoomSlider.addOnChangeListener { _, value, fromUser ->
+            if (fromUser) setZoom(sliderToZoom(value.toDouble()))
+        }
+        scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val current = camera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: return false
+                setZoom(current * detector.scaleFactor)
+                return true
+            }
+        })
+        binding.viewFinder.setOnTouchListener { _, event ->
+            scaleDetector.onTouchEvent(event)
+            true
+        }
 
         if (hasCorePermissions()) startSystems() else permissionLauncher.launch(requiredPermissions)
 
@@ -95,7 +146,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         vm.orientationProvider.start()
-        if (hasCorePermissions()) vm.startLocation()
+        if (hasCorePermissions()) {
+            vm.startLocation()
+            vm.startStartupChecks() // compass health + update check; runs once per process
+        }
     }
 
     override fun onPause() {
@@ -107,6 +161,47 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         cameraExecutor.shutdown()
+        // Full shutdown requested by the user: end the process so nothing keeps running in the background.
+        if (exiting) Process.killProcess(Process.myPid())
+    }
+
+    // ===== Exit =====
+
+    private fun confirmExit() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.exit_title)
+            .setMessage(R.string.exit_msg)
+            .setPositiveButton(R.string.dialog_yes) { _, _ -> exitApp() }
+            .setNegativeButton(R.string.dialog_no, null)
+            .show()
+    }
+
+    /** Stops sensors, location and camera, removes the task, then kills the process (see onDestroy). */
+    private fun exitApp() {
+        exiting = true
+        vm.shutdown()
+        try {
+            ProcessCameraProvider.getInstance(this).get().unbindAll()
+        } catch (e: Exception) {
+            Log.w(TAG, "Camera unbind on exit failed", e)
+        }
+        finishAndRemoveTask()
+        // Fallback if onDestroy is delayed by the system.
+        Handler(Looper.getMainLooper()).postDelayed({ Process.killProcess(Process.myPid()) }, EXIT_KILL_DELAY_MS)
+    }
+
+    // ===== Zoom =====
+
+    /** Slider position 0..1 <-> zoom ratio, logarithmic so each slider step feels like the same magnification step. */
+    private fun sliderToZoom(t: Double): Double =
+        if (maxZoom > minZoom) minZoom * (maxZoom / minZoom).pow(t.coerceIn(0.0, 1.0)) else minZoom
+
+    private fun zoomToSlider(z: Double): Double =
+        if (maxZoom > minZoom) (ln(z / minZoom) / ln(maxZoom / minZoom)).coerceIn(0.0, 1.0) else 0.0
+
+    private fun setZoom(ratio: Double) {
+        val cam = camera ?: return
+        cam.cameraControl.setZoomRatio(ratio.coerceIn(minZoom, maxZoom).toFloat())
     }
 
     private fun hasCorePermissions() = listOf(Manifest.permission.CAMERA, Manifest.permission.ACCESS_FINE_LOCATION)
@@ -129,8 +224,11 @@ class MainActivity : AppCompatActivity() {
                 .build()
             try {
                 provider.unbindAll()
-                val camera = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
-                horizontalFovDeg(camera)?.let { vm.hfovDeg = it }
+                val bound = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                camera = bound
+                horizontalFovDeg(bound)?.let { vm.hfovDeg = it }
+                zoomLive?.removeObserver(zoomObserver)
+                zoomLive = bound.cameraInfo.zoomState.also { it.observe(this, zoomObserver) }
             } catch (e: Exception) {
                 Log.e(TAG, "Camera bind failed", e)
                 Toast.makeText(this, R.string.camera_error, Toast.LENGTH_SHORT).show()
@@ -204,9 +302,75 @@ class MainActivity : AppCompatActivity() {
         val status = StringBuilder(
             getString(R.string.data_status, state.tiles.available, state.tiles.required, state.targetsCount)
         )
+        status.append('\n').append(compassStatusText(state.compass))
         if (state.offline) status.append('\n').append(getString(R.string.data_offline))
         if (!state.compassCalibrated) status.append('\n').append(getString(R.string.compass_uncalibrated))
         binding.dataStatusText.text = status
+        handleCompassReport(state.compass)
+    }
+
+    // ===== Compass health =====
+
+    private fun compassStatusText(r: CompassReport): String = when (r.verdict) {
+        CompassVerdict.CHECKING -> getString(R.string.compass_status_checking)
+        CompassVerdict.OK -> r.fieldUt?.let { getString(R.string.compass_status_ok, it) }
+            ?: getString(R.string.compass_status_ok_plain)
+        else -> getString(R.string.compass_status_bad)
+    }
+
+    private fun compassMessage(r: CompassReport): String = when (r.verdict) {
+        CompassVerdict.NO_SENSOR -> getString(R.string.compass_msg_no_sensor)
+        CompassVerdict.UNCALIBRATED -> getString(R.string.compass_msg_uncalibrated)
+        CompassVerdict.INTERFERENCE -> getString(
+            R.string.compass_msg_interference, r.fieldUt ?: 0.0,
+            AppConfig.COMPASS_FIELD_MIN_UT, AppConfig.COMPASS_FIELD_MAX_UT
+        )
+        CompassVerdict.UNSTABLE -> getString(R.string.compass_msg_unstable, r.spreadDeg ?: 0.0)
+        CompassVerdict.OK, CompassVerdict.CHECKING -> ""
+    }
+
+    /** Each finished check is reported once: a toast when healthy, a dialog with advice and a re-check otherwise. */
+    private fun handleCompassReport(r: CompassReport) {
+        if (r.verdict == CompassVerdict.CHECKING || r === lastCompassReport) return
+        lastCompassReport = r
+        if (r.verdict == CompassVerdict.OK) {
+            toast(compassStatusText(r))
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.compass_title)
+            .setMessage(compassMessage(r))
+            .setPositiveButton(R.string.compass_recheck) { _, _ -> vm.runCompassCheck() }
+            .setNegativeButton(R.string.compass_continue, null)
+            .show()
+    }
+
+    // ===== Identify =====
+
+    /** Lists the targets inside the crosshair window (ranked), so the pointed target can be confirmed. */
+    private fun showIdentify() {
+        val s = vm.ui.value
+        val message = if (s.candidates.isEmpty()) {
+            getString(R.string.identify_none)
+        } else {
+            s.candidates.mapIndexed { i, c ->
+                val e = c.evaluation
+                val vis = when (e.visibility) {
+                    Visibility.VISIBLE -> R.string.identify_visible
+                    Visibility.OBSTRUCTED -> R.string.identify_hidden
+                    Visibility.UNKNOWN -> R.string.identify_unknown
+                }
+                getString(
+                    R.string.identify_line, i + 1, e.target.name, getString(kindLabel(e.target.targetKind)),
+                    e.distanceM / 1000.0, c.angleDiffDeg, getString(vis)
+                )
+            }.joinToString("\n\n")
+        }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.identify_title, s.zoomRatio))
+            .setMessage(message)
+            .setPositiveButton(R.string.dialog_close, null)
+            .show()
     }
 
     private fun buildLiveContent(state: UiState): OverlayContent {
@@ -241,40 +405,46 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Data block shown on screen and burned into the photo:
+     * Data block shown on screen and burned into the photo, one group (row) per topic:
      *   observer position / accuracy / altitude, camera direction (azimuth + vertical angle),
      *   target kind / position / altitude, and target geometry (range, bearing, vertical angle, clearance).
      */
     private fun infoLines(state: UiState): List<String> {
-        val lines = ArrayList<String>(4)
+        val groups = ArrayList<String>(4)
         state.fix?.let { fix ->
-            lines.add(
-                getString(
-                    R.string.info_observer, fix.lat, fix.lon, fix.horizontalAccuracyM.roundToInt(),
-                    altText(state.observerEyeAltM)
-                )
+            groups.add(
+                listOf(
+                    getString(R.string.info_observer_pos, fix.lat, fix.lon),
+                    getString(R.string.info_observer_acc, fix.horizontalAccuracyM.roundToInt(), altText(state.observerEyeAltM))
+                ).joinToString("\n")
             )
         }
         state.azimuthDeg?.let { az ->
-            lines.add(getString(R.string.info_direction, az.roundToInt().mod(360), state.cameraElevationDeg ?: 0.0))
+            groups.add(
+                listOf(
+                    getString(R.string.info_direction, az.roundToInt().mod(360), state.cameraElevationDeg ?: 0.0),
+                    getString(R.string.info_zoom, state.zoomRatio)
+                ).joinToString("\n")
+            )
         }
         state.target?.let { t ->
-            lines.add(
-                getString(
-                    R.string.info_target, t.target.name, getString(kindLabel(t.target.targetKind)),
-                    t.target.latitude, t.target.longitude, altText(t.topAltM)
-                )
+            groups.add(
+                listOf(
+                    getString(R.string.info_target_name, t.target.name),
+                    getString(R.string.info_target_kind, getString(kindLabel(t.target.targetKind)), altText(t.topAltM)),
+                    getString(R.string.info_target_pos, t.target.latitude, t.target.longitude)
+                ).joinToString("\n")
             )
             val clearance = t.minClearanceM?.let { getString(R.string.info_meters, it.roundToInt()) }
                 ?: getString(R.string.info_none)
-            lines.add(
-                getString(
-                    R.string.info_geometry, t.distanceM / 1000.0, t.bearingDeg,
-                    t.elevationAngleDeg ?: 0.0, clearance
-                )
+            groups.add(
+                listOf(
+                    getString(R.string.info_geometry_range, t.distanceM / 1000.0, t.bearingDeg),
+                    getString(R.string.info_geometry_angle, t.elevationAngleDeg ?: 0.0, clearance)
+                ).joinToString("\n")
             )
         }
-        return lines
+        return groups
     }
 
     private fun altText(altM: Double?): String =
@@ -306,7 +476,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun onUpdateClicked() {
         val s = vm.update.value
-        if (s is UpdateState.ReadyToInstall && s.apk.exists()) install(s.apk) else vm.checkForUpdate()
+        if (s is UpdateState.ReadyToInstall && s.apk.exists()) install(s.apk) else vm.checkForUpdate(silent = false)
     }
 
     private fun renderUpdate(state: UpdateState) {
@@ -315,7 +485,8 @@ class MainActivity : AppCompatActivity() {
             UpdateState.Checking -> binding.updateButton.text = getString(R.string.update_checking)
             is UpdateState.Downloading -> binding.updateButton.text = getString(R.string.update_downloading, state.percent)
             is UpdateState.UpToDate -> {
-                toast(getString(R.string.update_none, state.versionName))
+                // The automatic start-up check only speaks up when an update exists.
+                if (!vm.silentUpdateCheck) toast(getString(R.string.update_none, state.versionName))
                 vm.resetUpdateState()
             }
             is UpdateState.Available -> if (lastUpdateDialogFor != state.remote) {
@@ -351,7 +522,7 @@ class MainActivity : AppCompatActivity() {
                 vm.resetUpdateState()
             }
             UpdateState.Failed -> {
-                toast(getString(R.string.update_error))
+                if (!vm.silentUpdateCheck) toast(getString(R.string.update_error))
                 vm.resetUpdateState()
             }
         }
@@ -373,5 +544,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val EXIT_KILL_DELAY_MS = 1_500L
     }
 }

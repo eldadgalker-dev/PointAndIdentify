@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -46,10 +46,23 @@ object AppConfig {
     // ===== Parameters: target selection =====
     const val BASE_TOLERANCE_DEG = 3.0        // deg, minimum angular acceptance (compass error)
     const val DEFAULT_HFOV_DEG = 60.0         // deg, used when camera FOV is unavailable
+    const val CANDIDATES_MAX = 5              // targets listed by the identify dialog
+    const val VERTICAL_TIEBREAK_WEIGHT = 0.2  // score weight of the vertical angle mismatch (tie-breaker only)
+    const val VERTICAL_TIEBREAK_CAP_DEG = 10.0 // deg, vertical mismatch beyond this adds no further penalty
+
+    // ===== Parameters: zoom =====
+    const val ZOOM_MIN_FALLBACK = 1.0         // used until the camera reports its zoom range
 
     // ===== Parameters: sensors =====
     const val AZIMUTH_SMOOTHING_ALPHA = 0.15f // low-pass factor, 0..1 (lower = smoother)
     const val UI_UPDATE_INTERVAL_MS = 100L    // ms, overlay refresh throttle
+
+    // ===== Parameters: compass health check (runs once at start) =====
+    const val COMPASS_FIELD_MIN_UT = 25.0     // uT, below this the magnetometer reads too weak a field
+    const val COMPASS_FIELD_MAX_UT = 65.0     // uT, above this a magnet or steel is distorting the field (Earth: ~25-65)
+    const val COMPASS_CHECK_DURATION_MS = 4_000L // ms, sampling window with the phone held still
+    const val COMPASS_SPREAD_MAX_DEG = 8.0    // deg, circular std-dev of azimuth above which the reading is unstable
+    const val COMPASS_FIELD_SMOOTHING_ALPHA = 0.2f // low-pass factor of the field strength
 
     // ===== Parameters: location =====
     const val LOCATION_INTERVAL_MS = 2_000L
@@ -73,5 +86,11 @@ object AppConfig {
         require(REFRACTION_K in 0.0..0.5) { "REFRACTION_K out of physical range" }
         require(AZIMUTH_SMOOTHING_ALPHA in 0.01f..1f) { "AZIMUTH_SMOOTHING_ALPHA out of range" }
         require(TILE_DOWNLOAD_PARALLELISM in 1..8) { "TILE_DOWNLOAD_PARALLELISM out of range" }
+        require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
+        require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
+        require(ZOOM_MIN_FALLBACK > 0) { "ZOOM_MIN_FALLBACK must be positive" }
+        require(COMPASS_FIELD_MIN_UT in 0.0..COMPASS_FIELD_MAX_UT) { "Invalid compass field range" }
+        require(COMPASS_CHECK_DURATION_MS > 0 && COMPASS_SPREAD_MAX_DEG > 0) { "Invalid compass check parameters" }
+        require(COMPASS_FIELD_SMOOTHING_ALPHA in 0.01f..1f) { "COMPASS_FIELD_SMOOTHING_ALPHA out of range" }
     }
 }
