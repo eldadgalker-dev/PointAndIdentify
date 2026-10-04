@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -53,6 +53,11 @@ object AppConfig {
     // ===== Parameters: zoom =====
     const val ZOOM_MIN_FALLBACK = 1.0         // used until the camera reports its zoom range
 
+    // ===== Parameters: language =====
+    const val LANGUAGE_ENGLISH_TAG = "en"
+    const val LANGUAGE_HEBREW_TAG = "he"
+    const val LANGUAGE_DEFAULT_TAG = LANGUAGE_ENGLISH_TAG // used until the user picks a language in Settings
+
     // ===== Parameters: sensors =====
     const val AZIMUTH_SMOOTHING_ALPHA = 0.15f // low-pass factor, 0..1 (lower = smoother)
     const val UI_UPDATE_INTERVAL_MS = 100L    // ms, overlay refresh throttle
@@ -88,6 +93,9 @@ object AppConfig {
         require(TILE_DOWNLOAD_PARALLELISM in 1..8) { "TILE_DOWNLOAD_PARALLELISM out of range" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
+        require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {
+            "LANGUAGE_DEFAULT_TAG must be a supported language"
+        }
         require(ZOOM_MIN_FALLBACK > 0) { "ZOOM_MIN_FALLBACK must be positive" }
         require(COMPASS_FIELD_MIN_UT in 0.0..COMPASS_FIELD_MAX_UT) { "Invalid compass field range" }
         require(COMPASS_CHECK_DURATION_MS > 0 && COMPASS_SPREAD_MAX_DEG > 0) { "Invalid compass check parameters" }

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -101,6 +101,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile
     var silentUpdateCheck = false
         private set
+
+    /** Last compass report already shown to the user; kept here so recreating the Activity (language change) does not repeat it. */
+    var lastReportedCompass: CompassReport? = null
 
     private var startupChecksDone = false
     private var compassJob: Job? = null

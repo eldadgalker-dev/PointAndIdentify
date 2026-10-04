@@ -1,12 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.ui
 
 import android.content.Context
 import android.graphics.Canvas
 import android.util.AttributeSet
+import android.util.TypedValue
 import android.view.View
 
 /** Live overlay above the camera preview; drawing is delegated to OverlayRenderer. */
@@ -19,12 +20,25 @@ class OverlayView @JvmOverloads constructor(
     private val renderer = OverlayRenderer()
 
     // ===== Parameters =====
-    /** Space kept free above the bottom edge for the capture button and zoom slider, px. */
+    /** Space kept free above the bottom edge for the capture buttons, px (the Activity sets the measured value). */
     var bottomInsetPx: Float = resources.displayMetrics.density * BOTTOM_INSET_DP
         set(value) {
-            field = value
-            invalidate()
+            if (field != value) {
+                field = value
+                invalidate()
+            }
         }
+
+    private val insets: OverlayInsets
+        get() = OverlayInsets(
+            bottomPx = bottomInsetPx,
+            bottomGapPx = mm(BOTTOM_GAP_MM),
+            sideExtraPx = mm(SIDE_EXTRA_MM),
+            rightReservedPx = resources.displayMetrics.density * ZOOM_BAR_RESERVED_DP
+        )
+
+    private fun mm(value: Float): Float =
+        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_MM, value, resources.displayMetrics)
 
     var content: OverlayContent = OverlayContent("", "")
         set(value) {
@@ -41,10 +55,13 @@ class OverlayView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        renderer.draw(canvas, width, height, content, bottomInsetPx)
+        renderer.draw(canvas, width, height, content, insets)
     }
 
     companion object {
-        private const val BOTTOM_INSET_DP = 150f // capture button 60 dp + 20 dp margin + zoom slider ~52 dp + spacing
+        private const val BOTTOM_INSET_DP = 80f      // fallback: capture button 60 dp + 20 dp margin
+        private const val BOTTOM_GAP_MM = 1f         // data block sits this far above the bottom buttons
+        private const val SIDE_EXTRA_MM = 1f         // data block is inset this much further from the side edges
+        private const val ZOOM_BAR_RESERVED_DP = 84f // zoom bar width 80 dp + margin; texts stay clear of it
     }
 }

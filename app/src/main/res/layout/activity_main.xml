@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
-    android:layoutDirection="rtl">
+    android:paddingTop="5mm"
+    android:paddingBottom="5mm">
 
     <androidx.camera.view.PreviewView
         android:id="@+id/viewFinder"
@@ -28,7 +29,7 @@
         android:padding="8dp"
         android:textAlignment="viewStart"
         android:textColor="@android:color/white"
-        android:textDirection="rtl"
+        android:textDirection="locale"
         android:textSize="17sp"
         app:layout_constraintEnd_toStartOf="@id/topButtons"
         app:layout_constraintStart_toStartOf="parent"
@@ -58,35 +59,46 @@
             android:layout_height="wrap_content"
             android:text="@string/btn_update"
             android:textSize="16sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settingsButton"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/btn_settings"
+            android:textSize="16sp" />
     </LinearLayout>
 
-    <!-- Zoom: label + slider on a logarithmic scale (0..1 maps to the camera's min..max zoom ratio).
-         The slider is forced LTR so that dragging right always means zoom in. -->
-    <TextView
-        android:id="@+id/zoomText"
+    <!-- Everything under the top blocks (status text, buttons) starts below this barrier. -->
+    <androidx.constraintlayout.widget.Barrier
+        android:id="@+id/topBarrier"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="12dp"
-        android:background="#99000000"
-        android:padding="6dp"
-        android:textColor="@android:color/white"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        app:layout_constraintBottom_toBottomOf="@id/zoomSlider"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="@id/zoomSlider" />
+        app:barrierDirection="bottom"
+        app:constraint_referenced_ids="dataStatusText,topButtons" />
 
-    <com.google.android.material.slider.Slider
-        android:id="@+id/zoomSlider"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:layoutDirection="ltr"
-        android:valueFrom="0.0"
-        android:valueTo="1.0"
+    <!-- Small north indicator, left edge (the zoom bar owns the right edge). -->
+    <com.galker.pointandidentify.ui.CompassView
+        android:id="@+id/compassView"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_marginLeft="8dp"
+        android:layout_marginTop="8dp"
+        app:layout_constraintLeft_toLeftOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBarrier" />
+
+    <!-- Zoom: vertical bar on the right edge, minimum at the bottom, maximum at the top, zoom value at the thumb.
+         Logarithmic scale (0..1 maps to the camera's min..max zoom ratio). -->
+    <com.galker.pointandidentify.ui.ZoomBarView
+        android:id="@+id/zoomBar"
+        android:layout_width="80dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginRight="4dp"
+        android:layout_marginBottom="8dp"
         app:layout_constraintBottom_toTopOf="@id/captureButton"
-        app:layout_constraintEnd_toStartOf="@id/zoomText"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintRight_toRightOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/topBarrier" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/captureButton"

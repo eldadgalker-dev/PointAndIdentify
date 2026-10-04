@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -13,7 +13,9 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.util.Log
+import android.view.View
 import android.view.ScaleGestureDetector
+import android.widget.FrameLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -36,6 +38,7 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.galker.pointandidentify.R
+import com.google.android.material.button.MaterialButton
 import com.galker.pointandidentify.capture.PhotoExporter
 import com.galker.pointandidentify.capture.PhotoMeta
 import com.galker.pointandidentify.config.AppConfig
@@ -72,19 +75,20 @@ class MainActivity : AppCompatActivity() {
     private var minZoom = AppConfig.ZOOM_MIN_FALLBACK
     private var maxZoom = AppConfig.ZOOM_MIN_FALLBACK
     private lateinit var scaleDetector: ScaleGestureDetector
-    private var lastCompassReport: CompassReport? = null // identity-compared: each finished check is a new object
     private var exiting = false
 
-    /** Camera zoom state -> label, slider position and the ViewModel (which narrows the selection window). */
+    /** Camera zoom state -> zoom bar (value, labels) and the ViewModel (which narrows the selection window). */
     private val zoomObserver = Observer<ZoomState> { st ->
         minZoom = st.minZoomRatio.toDouble()
         maxZoom = st.maxZoomRatio.toDouble()
         val z = st.zoomRatio.toDouble()
         vm.onZoomChanged(z)
-        binding.zoomText.text = getString(R.string.zoom_label, z)
-        binding.zoomSlider.isEnabled = maxZoom > minZoom + 1e-6
+        binding.zoomBar.valueLabel = getString(R.string.zoom_label, z)
+        binding.zoomBar.minLabel = getString(R.string.zoom_label, minZoom)
+        binding.zoomBar.maxLabel = getString(R.string.zoom_label, maxZoom)
+        binding.zoomBar.isEnabled = maxZoom > minZoom + 1e-6
         val t = zoomToSlider(z).toFloat()
-        if (abs(binding.zoomSlider.value - t) > 0.001f) binding.zoomSlider.value = t
+        if (abs(binding.zoomBar.value - t) > 0.001f) binding.zoomBar.value = t
     }
 
     private val requiredPermissions: Array<String> by lazy {
@@ -116,11 +120,15 @@ class MainActivity : AppCompatActivity() {
         binding.updateButton.setOnClickListener { onUpdateClicked() }
         binding.exitButton.setOnClickListener { confirmExit() }
         binding.identifyButton.setOnClickListener { showIdentify() }
+        binding.settingsButton.setOnClickListener { showSettings() }
+        binding.compassView.northLabel = getString(R.string.compass_north)
 
-        // Zoom: slider (log scale) and pinch gesture both end in setZoom().
-        binding.zoomSlider.addOnChangeListener { _, value, fromUser ->
-            if (fromUser) setZoom(sliderToZoom(value.toDouble()))
-        }
+        // The data text sits just above the bottom buttons: follow their measured position.
+        binding.captureButton.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayBottomInset() }
+        binding.overlayView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayBottomInset() }
+
+        // Zoom: vertical bar (log scale) and pinch gesture both end in setZoom().
+        binding.zoomBar.onValueChanged = { setZoom(sliderToZoom(it.toDouble())) }
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 val current = camera?.cameraInfo?.zoomState?.value?.zoomRatio?.toDouble() ?: return false
@@ -163,6 +171,36 @@ class MainActivity : AppCompatActivity() {
         cameraExecutor.shutdown()
         // Full shutdown requested by the user: end the process so nothing keeps running in the background.
         if (exiting) Process.killProcess(Process.myPid())
+    }
+
+    // ===== Settings =====
+
+    /** Distance from the overlay's bottom edge to the top of the bottom buttons, so the data block rests on them. */
+    private fun updateOverlayBottomInset() {
+        val inset = (binding.overlayView.bottom - binding.captureButton.top).toFloat()
+        if (inset > 0f) binding.overlayView.bottomInsetPx = inset
+    }
+
+    /** Settings dialog; currently holds the language switch (English <-> Hebrew). */
+    private fun showSettings() {
+        var dialog: AlertDialog? = null
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val switchLanguage = MaterialButton(this).apply {
+            text = getString(R.string.settings_switch_language)
+            setOnClickListener {
+                dialog?.dismiss()
+                LanguageManager.toggle(this@MainActivity) // recreates this Activity with the new language
+            }
+        }
+        val box = FrameLayout(this).apply {
+            setPadding(pad, pad, pad, pad)
+            addView(switchLanguage)
+        }
+        dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.settings_title)
+            .setView(box)
+            .setNegativeButton(R.string.dialog_close, null)
+            .show()
     }
 
     // ===== Exit =====
@@ -306,6 +344,7 @@ class MainActivity : AppCompatActivity() {
         if (state.offline) status.append('\n').append(getString(R.string.data_offline))
         if (!state.compassCalibrated) status.append('\n').append(getString(R.string.compass_uncalibrated))
         binding.dataStatusText.text = status
+        binding.compassView.azimuthDeg = state.azimuthDeg?.toFloat()
         handleCompassReport(state.compass)
     }
 
@@ -331,8 +370,8 @@ class MainActivity : AppCompatActivity() {
 
     /** Each finished check is reported once: a toast when healthy, a dialog with advice and a re-check otherwise. */
     private fun handleCompassReport(r: CompassReport) {
-        if (r.verdict == CompassVerdict.CHECKING || r === lastCompassReport) return
-        lastCompassReport = r
+        if (r.verdict == CompassVerdict.CHECKING || r === vm.lastReportedCompass) return
+        vm.lastReportedCompass = r
         if (r.verdict == CompassVerdict.OK) {
             toast(compassStatusText(r))
             return
@@ -380,7 +419,8 @@ class MainActivity : AppCompatActivity() {
             state.fix == null -> OverlayContent(getString(R.string.status_waiting_location), "")
             else -> targetContent(state, az)
         }
-        return base.copy(infoLines = infoLines(state))
+        val rtl = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+        return base.copy(infoLines = infoLines(state), zoomRatio = state.zoomRatio, rtl = rtl)
     }
 
     private fun targetContent(state: UiState, az: Int?): OverlayContent {
