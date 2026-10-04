@@ -1,5 +1,5 @@
 {
- "version": 4,
+ "version": 5,
  "items": [
   {
    "name": "Abu Abdullah Al-Aidy",
@@ -16524,8 +16524,8 @@
   {
    "name": "Old Mosque",
    "kind": "ruins",
-   "lat": 31.916476,
-   "lon": 35.11528,
+   "lat": 31.916494,
+   "lon": 35.115283,
    "alt": null,
    "h": null
   },
