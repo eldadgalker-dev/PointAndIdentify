@@ -3,7 +3,7 @@
 # See the LICENSE.txt file in the project root for full license information.
 # =============================================================
 # PointAndIdentify - update_github.ps1
-# Version 2.0
+# Version 2.1
 # Purpose : One-step publisher. Takes a project zip (as delivered), mirrors
 #           its contents into a local clone of the GitHub repository
 #           (including hidden folders such as .github and deletions),
@@ -17,13 +17,16 @@
 #           First push opens a browser window to sign in (Git Credential
 #           Manager); later pushes are silent.
 # Usage   : double-click update_github.bat, or drag a zip onto it, or
-#           powershell -File update_github.ps1 -ZipPath C:\path\x.zip [-Message "text"]
+#           powershell -File update_github.ps1 -ZipPath C:\path\x.zip [-Message "text"] [-GitHubUser name]
+#           -GitHubUser selects the GitHub account used for the push (default: repository owner);
+#           that account needs write access to the repository (owner or collaborator).
 # Encoding: UTF-8 without BOM, CRLF or LF both accepted by PowerShell
 # =============================================================
 
 param(
     [string]$ZipPath = "",
-    [string]$Message = ""
+    [string]$Message = "",
+    [string]$GitHubUser = ""
 )
 
 # =============================================================
@@ -32,8 +35,9 @@ param(
 $RepoUrl        = "https://github.com/eldadgalker-dev/PointAndIdentify.git"   # remote repository
 $Branch         = "main"                                              # default branch
 $LocalDir       = Join-Path $env:USERPROFILE "PointAndIdentify-repo"  # local clone location
-$GitHubUser     = "eldadgalker-dev"   # GitHub account used for push; pinned per repository so another
-                                     # account remembered by Windows (e.g. for other projects) is not used
+$DefaultGitHubUser = "eldadgalker-dev"   # account used for push when -GitHubUser is not given; pinned
+                                        # per repository so another account remembered by Windows is not used
+$GitHubUserPattern = '^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$'   # GitHub user-name rules
 $GitUserName    = "Eldad Galker"                                      # commit author
 $GitUserEmail   = "eldad@galker.com"
 $ProjectMarker  = "settings.gradle.kts"     # file that identifies the project root inside the zip
@@ -80,15 +84,20 @@ function Push-WithHint {
     $code = $LASTEXITCODE
     Write-Host ""
     Write-Host "Push failed. Read the 'fatal:' / 'remote:' line above:" -ForegroundColor Yellow
-    Write-Host "  'Permission ... denied to <user>' : another GitHub account was used instead of $GitHubUser." -ForegroundColor Yellow
-    Write-Host "      Fix: in the browser sign out of that account and sign in as $GitHubUser," -ForegroundColor Yellow
-    Write-Host "           then run this tool again and approve the sign-in window." -ForegroundColor Yellow
+    Write-Host "  'Permission ... denied to <user>' : that account has no write access, or a different account was used." -ForegroundColor Yellow
+    Write-Host "      If <user> is $GitHubUser : add it as collaborator (repository Settings > Collaborators) and accept the invitation." -ForegroundColor Yellow
+    Write-Host "      If <user> is another account: in the browser switch to $GitHubUser, run again and approve the sign-in window." -ForegroundColor Yellow
     Write-Host "  'Authentication failed' / 'could not read Username' : the sign-in window was closed or blocked." -ForegroundColor Yellow
     Write-Host "      Fix: run this tool again and complete the browser sign-in." -ForegroundColor Yellow
     Write-Host "  'Repository not found' : the signed-in account cannot see $RepoUrl." -ForegroundColor Yellow
     Write-Host "Your commit is kept locally; the next run pushes it." -ForegroundColor Yellow
     Fail "git $($PushArgs -join ' ') failed (exit $code)"
 }
+
+# -- Push account --
+if (-not $GitHubUser) { $GitHubUser = $DefaultGitHubUser }
+if ($GitHubUser -notmatch $GitHubUserPattern) { Fail "Invalid GitHub user name: '$GitHubUser'." }
+Write-Host "Push account: $GitHubUser" -ForegroundColor DarkGray
 
 # -- Git present? --
 $gitCmd = Get-Command git -ErrorAction SilentlyContinue

@@ -1,7 +1,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 1.0
+# Version 1.1
 # Builds all app data automatically and commits it to main:
 #   targets (OpenStreetMap, Overpass) -> elevation (Terrain Tiles, downloaded) -> terrain tiles -> manifest
 # Runs when the data tools change, monthly, and on manual run (setup_once.ps1 starts the first run).
@@ -28,10 +28,10 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v5
         with:

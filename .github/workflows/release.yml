@@ -1,7 +1,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.0
+# Version 2.1
 # Builds a signed release APK automatically whenever app code reaches main (or on manual run),
 # creates tag v<versionBase>.<run number> and publishes a GitHub Release with
 # PointAndIdentify.apk and version.json, which the in-app update button reads.
@@ -29,9 +29,9 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # pinned: ubuntu-latest moves to a new image in Oct 2026
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check signing secrets
         env:
@@ -59,12 +59,27 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Release version: $VERSION (versionCode ${{ github.run_number }})"
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: android-actions/setup-android@v3
+      # GitHub Ubuntu runners ship an Android SDK (ANDROID_HOME). The separate setup action
+      # failed in run #2, so it now runs only when no SDK is present on the runner.
+      - name: Detect Android SDK
+        id: sdk
+        run: |
+          if [ -n "$ANDROID_HOME" ] && [ -d "$ANDROID_HOME" ]; then
+            echo "Android SDK found at $ANDROID_HOME"
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No preinstalled Android SDK"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install Android SDK (fallback)
+        if: steps.sdk.outputs.present != 'true'
+        uses: android-actions/setup-android@v3
 
       - uses: gradle/actions/setup-gradle@v4
         with:

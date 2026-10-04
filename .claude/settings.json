@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git:*)",
+      "Bash(gh run:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh release view:*)",
+      "Bash(gh release list:*)",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(./gradlew:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Read(**/*.jks)",
+      "Read(**/passwords.txt)"
+    ]
+  }
+}
