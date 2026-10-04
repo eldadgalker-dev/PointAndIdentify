@@ -1,6 +1,6 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.0. This file is read automatically at the start of every session in this repository.
+Version 1.1. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
@@ -10,6 +10,7 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 3. If a requested approach looks wrong, say so before executing.
 4. Ambiguous request: act on the most reasonable reading and state the assumption. Ask only when readings lead to materially different results.
 5. Do not send repository content to web searches or external tools without explicit approval (git/gh against this repository is approved).
+6. Right-to-left display: start every paragraph, list item and table cell with a Hebrew word, so the interface aligns it to the right. Never start a line with a command, file name, number or English term; place such items later in the line. Keep code and commands in code blocks (left-to-right).
 
 ## 2. Repository facts
 
