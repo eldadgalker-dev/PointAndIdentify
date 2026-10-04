@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -38,13 +38,15 @@ data class OverlayContent(
  *  sideExtraPx     : additional inset of the data block from both side edges
  *  reservedPx      : width kept free at one side edge (zoom bar); the data block is laid out beside it
  *  reservedOnLeft  : which edge the reserved strip is on
+ *  topPx           : space kept free at the top (status block); the target title is pinned just below it
  */
 data class OverlayInsets(
     val bottomPx: Float = 0f,
     val bottomGapPx: Float? = null,
     val sideExtraPx: Float = 0f,
     val reservedPx: Float = 0f,
-    val reservedOnLeft: Boolean = false
+    val reservedOnLeft: Boolean = false,
+    val topPx: Float = 0f
 )
 
 /**
@@ -62,8 +64,8 @@ class OverlayRenderer {
     private val strokeRatio = 0.004f
     private val primaryTextRatio = 0.072f
     private val secondaryTextRatio = 0.046f
-    private val infoTextRatio = 0.06f
-    private val footerTextRatio = 0.045f
+    private val infoTextRatio = 0.07f
+    private val footerTextRatio = 0.052f
     private val infoFitMin = 0.45f       // smallest shrink factor when the data block must fit under the crosshair
     private val marginRatio = 0.03f
     private val groupGapRatio = 0.012f      // vertical space on each side of a group divider
@@ -79,7 +81,8 @@ class OverlayRenderer {
     private val bandPaint = Paint().apply { color = Color.BLACK }
     private val dividerPaint = Paint().apply { color = Color.argb(120, 255, 255, 255) }
 
-    fun draw(canvas: Canvas, width: Int, height: Int, content: OverlayContent, insets: OverlayInsets = OverlayInsets()) {
+    /** Draws everything; returns the y of the top of the data block (px), so other views can sit above it. */
+    fun draw(canvas: Canvas, width: Int, height: Int, content: OverlayContent, insets: OverlayInsets = OverlayInsets()): Float {
         val unit = min(width, height).toFloat()
         val cx = width / 2f
         val cy = height / 2f
@@ -116,11 +119,11 @@ class OverlayRenderer {
         val blockLeft = margin + insets.sideExtraPx + if (insets.reservedOnLeft) insets.reservedPx else 0f
         val blockWidth = (width - 2 * (margin + insets.sideExtraPx) - insets.reservedPx).toInt().coerceAtLeast(1)
 
-        // Title block above the crosshair: secondary line closest, primary above it.
+        // Title block pinned below the status block: it does not move when the crosshair grows with the zoom.
         val secondary = layout(content.secondary, secondaryPaint, titleWidth, Layout.Alignment.ALIGN_CENTER, direction)
         val primary = layout(content.primary, primaryPaint, titleWidth, Layout.Alignment.ALIGN_CENTER, direction)
-        val secondaryTop = cy - r - arm - margin - secondary.height
-        val primaryTop = secondaryTop - primary.height
+        val primaryTop = insets.topPx + margin
+        val secondaryTop = primaryTop + primary.height
         if (content.primary.isNotEmpty() || content.secondary.isNotEmpty()) {
             bandPaint.alpha = titleBackgroundAlpha
             canvas.drawRect(0f, primaryTop - margin * 0.4f, width.toFloat(), secondaryTop + secondary.height + margin * 0.4f, bandPaint)
@@ -133,8 +136,10 @@ class OverlayRenderer {
         val gap = unit * groupGapRatio
         val bottomGap = insets.bottomGapPx ?: margin
         val bottomEdge = height - insets.bottomPx - bottomGap
-        // The block must not cover the crosshair: text shrinks (down to infoFitMin) until it fits below it.
-        val maxTotal = bottomEdge - (cy + r + arm + margin) - margin * 0.5f
+        // The block must not cover the crosshair: text shrinks (down to infoFitMin) until it fits below the crosshair
+        // at zoom 1. The reference is zoom-independent, so the text size does not change while zooming.
+        val refCrosshair = unit * (crosshairRadiusRatio + crosshairArmRatio)
+        val maxTotal = bottomEdge - (cy + refCrosshair + margin) - margin * 0.5f
         var fit = 1f
         var blocks = buildBlocks(content, blockWidth, direction, unit, fit)
         var total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
@@ -145,7 +150,9 @@ class OverlayRenderer {
             total = blocks.sumOf { it.height } + 2f * gap * (blocks.size - 1)
             attempts++
         }
+        var dataTop = bottomEdge
         if (blocks.isNotEmpty()) {
+            dataTop = bottomEdge - total - margin * 0.5f
             bandPaint.alpha = infoBackgroundAlpha
             canvas.drawRect(
                 0f, bottomEdge - total - margin * 0.5f,
@@ -163,6 +170,7 @@ class OverlayRenderer {
                 }
             }
         }
+        return dataTop
     }
 
     /** Crosshair scale for a zoom ratio: grows with zoom, never below 1, capped. */

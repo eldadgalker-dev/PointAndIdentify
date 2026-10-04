@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -9,6 +9,7 @@ import android.graphics.Canvas
 import android.util.AttributeSet
 import android.util.TypedValue
 import android.view.View
+import kotlin.math.abs
 import kotlin.math.hypot
 
 /** Live overlay above the camera preview; drawing is delegated to OverlayRenderer. */
@@ -30,6 +31,19 @@ class OverlayView @JvmOverloads constructor(
             }
         }
 
+    /** Space kept free at the top for the status block, px; the target title is pinned below it. */
+    var topInsetPx: Float = 0f
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
+    /** Called (on the UI thread) with the y of the top of the data block whenever it changes. */
+    var onDataTopChanged: ((Float) -> Unit)? = null
+    private var lastDataTop = -1f
+
     /** True when the zoom bar is on the left edge, so the data block keeps clear of that side. */
     var zoomBarOnLeft: Boolean = false
         set(value) {
@@ -45,7 +59,8 @@ class OverlayView @JvmOverloads constructor(
             bottomGapPx = mm(BOTTOM_GAP_MM),
             sideExtraPx = mm(SIDE_EXTRA_MM),
             reservedPx = resources.displayMetrics.density * ZOOM_BAR_RESERVED_DP,
-            reservedOnLeft = zoomBarOnLeft
+            reservedOnLeft = zoomBarOnLeft,
+            topPx = topInsetPx
         )
 
     private fun mm(value: Float): Float =
@@ -75,7 +90,11 @@ class OverlayView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        renderer.draw(canvas, width, height, content, insets)
+        val dataTop = renderer.draw(canvas, width, height, content, insets)
+        if (abs(dataTop - lastDataTop) > 1f) {
+            lastDataTop = dataTop
+            post { onDataTopChanged?.invoke(dataTop) } // never change the layout from inside onDraw
+        }
     }
 
     companion object {
@@ -83,6 +102,6 @@ class OverlayView @JvmOverloads constructor(
         private const val BOTTOM_INSET_DP = 80f      // fallback: capture button 60 dp + 20 dp margin
         private const val BOTTOM_GAP_MM = 1f         // data block sits this far above the bottom buttons
         private const val SIDE_EXTRA_MM = 1f         // data block is inset this much further from the side edges
-        private const val ZOOM_BAR_RESERVED_DP = 84f // zoom bar width 80 dp + margin; texts stay clear of it
+        private const val ZOOM_BAR_RESERVED_DP = 100f // zoom bar width 96 dp + margin; texts stay clear of it
     }
 }

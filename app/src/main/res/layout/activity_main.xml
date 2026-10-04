@@ -45,21 +45,20 @@
         app:barrierDirection="bottom"
         app:constraint_referenced_ids="dataStatusText" />
 
-    <!-- Small north indicator, left edge (the zoom bar owns the right edge); camera heading below it. -->
+    <!-- Small north indicator above the data block (its bottom margin follows the block); camera heading below it. -->
     <com.galker.pointandidentify.ui.CompassView
         android:id="@+id/compassView"
         android:layout_width="72dp"
         android:layout_height="72dp"
         android:layout_marginLeft="8dp"
-        android:layout_marginTop="8dp"
-        app:layout_constraintLeft_toLeftOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/topBarrier" />
+        android:layout_marginBottom="4dp"
+        app:layout_constraintBottom_toTopOf="@id/azimuthText"
+        app:layout_constraintLeft_toLeftOf="parent" />
 
     <TextView
         android:id="@+id/azimuthText"
         android:layout_width="72dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
         android:background="#99000000"
         android:gravity="center"
         android:paddingTop="2dp"
@@ -69,14 +68,14 @@
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintLeft_toLeftOf="@id/compassView"
-        app:layout_constraintRight_toRightOf="@id/compassView"
-        app:layout_constraintTop_toBottomOf="@id/compassView" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintRight_toRightOf="@id/compassView" />
 
     <!-- Zoom: vertical bar on the right edge, minimum at the bottom, maximum at the top, zoom value at the thumb.
          Logarithmic scale (0..1 maps to the min..max of camera zoom times the extra calculated zoom). -->
     <com.galker.pointandidentify.ui.ZoomBarView
         android:id="@+id/zoomBar"
-        android:layout_width="80dp"
+        android:layout_width="96dp"
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
         android:layout_marginRight="4dp"

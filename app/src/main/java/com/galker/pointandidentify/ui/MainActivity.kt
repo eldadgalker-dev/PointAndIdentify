@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
 import android.os.Build
 import android.os.Bundle
+import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
 import android.content.DialogInterface
@@ -17,10 +19,12 @@ import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.view.GestureDetector
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
@@ -135,6 +139,10 @@ class MainActivity : AppCompatActivity() {
         binding.captureButton.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayBottomInset() }
         binding.overlayView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayBottomInset() }
 
+        // The target title is pinned below the status block; the compass sits just above the data block.
+        binding.dataStatusText.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateOverlayTopInset() }
+        binding.overlayView.onDataTopChanged = { top -> placeCompassAbove(top) }
+
         // Zoom: vertical bar (log scale) and pinch gesture both end in setZoom().
         binding.zoomBar.onValueChanged = { setZoom(sliderToZoom(it.toDouble())) }
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -169,10 +177,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        vm.startUpdateCheckOnce() // every launch checks for a newer version, even before permissions are granted
         vm.orientationProvider.start()
         if (hasCorePermissions()) {
             vm.startLocation()
-            vm.startStartupChecks() // compass health + update check; runs once per process
+            vm.startStartupChecks() // compass health; runs once per process
         }
     }
 
@@ -190,6 +199,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ===== Settings =====
+
+    /** Space from the overlay's top edge to the bottom of the status block (plus its margin), so the title starts below it. */
+    private fun updateOverlayTopInset() {
+        val inset = (binding.dataStatusText.bottom - binding.overlayView.top).toFloat() +
+            resources.displayMetrics.density * STATUS_MARGIN_DP
+        if (inset > 0f) binding.overlayView.topInsetPx = inset
+    }
+
+    /** Puts the compass (with the azimuth under it) directly above the data block, whose top is at dataTopPx. */
+    private fun placeCompassAbove(dataTopPx: Float) {
+        val lp = binding.azimuthText.layoutParams as ConstraintLayout.LayoutParams
+        val margin = (binding.overlayView.height - dataTopPx + resources.displayMetrics.density * COMPASS_GAP_DP).toInt()
+        if (lp.bottomMargin != margin) {
+            lp.bottomMargin = margin.coerceAtLeast(0)
+            binding.azimuthText.layoutParams = lp
+        }
+    }
 
     /** Distance from the overlay's bottom edge to the top of the bottom buttons, so the data block rests on them. */
     private fun updateOverlayBottomInset() {
@@ -355,13 +381,33 @@ class MainActivity : AppCompatActivity() {
 
     // ===== Exit =====
 
+    /** Exit confirmation: shown high on the screen, black text on a white plate for maximum contrast over the camera image. */
     private fun confirmExit() {
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(R.string.exit_title)
             .setMessage(R.string.exit_msg)
             .setPositiveButton(R.string.dialog_yes) { _, _ -> exitApp() }
             .setNegativeButton(R.string.dialog_no, null)
-            .show()
+            .create()
+        dialog.window?.let { w ->
+            w.setGravity(Gravity.TOP)
+            val lp = w.attributes
+            lp.y = (resources.displayMetrics.heightPixels * EXIT_DIALOG_TOP_FRACTION).toInt()
+            w.attributes = lp
+            val density = resources.displayMetrics.density
+            w.setBackgroundDrawable(GradientDrawable().apply {
+                setColor(Color.WHITE)
+                cornerRadius = 16f * density
+                setStroke((3 * density).toInt(), Color.BLACK)
+            })
+        }
+        dialog.setOnShowListener {
+            dialog.findViewById<TextView>(androidx.appcompat.R.id.alertTitle)?.setTextColor(Color.BLACK)
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextColor(Color.BLACK)
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setTextColor(Color.rgb(183, 28, 28))
+            dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setTextColor(Color.BLACK)
+        }
+        dialog.show()
     }
 
     /** Stops sensors, location and camera, removes the task, then kills the process (see onDestroy). */
@@ -779,6 +825,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val EXIT_KILL_DELAY_MS = 1_500L
+        private const val EXIT_DIALOG_TOP_FRACTION = 0.12f // exit dialog top edge, as a fraction of the screen height
+        private const val STATUS_MARGIN_DP = 8f            // margin of the status block (activity_main.xml)
+        private const val COMPASS_GAP_DP = 4f              // gap between the data block and the azimuth label above it
         private const val ZOOM_BAR_MARGIN_DP = 4f
         private const val COMPASS_MARGIN_DP = 8f
         private const val MAX_POINT_NAME_LENGTH = 60

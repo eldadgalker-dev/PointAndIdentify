@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -29,7 +29,7 @@ class ZoomBarView @JvmOverloads constructor(
     private val thumbRadiusDp = 13f
     private val trackInsetRightDp = 16f   // distance of the track centre from the right edge
     private val labelGapDp = 10f          // gap between labels and the thumb
-    private val valueTextSp = 18f
+    private val valueTextSp = 13f        // same size as the limit digits, so nothing is clipped beside the thumb
     private val limitTextSp = 13f
     private val plateAlpha = 150          // 0..255, dark plate behind labels
 
