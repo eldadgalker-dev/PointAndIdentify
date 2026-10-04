@@ -1,5 +1,5 @@
 {
- "version": 5,
+ "version": 6,
  "items": [
   {
    "name": "Abu Abdullah Al-Aidy",
@@ -506,6 +506,14 @@
    "h": null
   },
   {
+   "name": "מצודת טורון",
+   "kind": "castle",
+   "lat": 33.195384,
+   "lon": 35.41241,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "מצודת יואב",
    "kind": "castle",
    "lat": 31.647846,
@@ -526,14 +534,6 @@
    "kind": "castle",
    "lat": 31.887649,
    "lon": 35.134526,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "תבנין",
-   "kind": "castle",
-   "lat": 33.195384,
-   "lon": 35.41241,
    "alt": null,
    "h": null
   },
@@ -646,6 +646,14 @@
    "kind": "castle",
    "lat": 31.408895,
    "lon": 34.338336,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "قصر السيوفي",
+   "kind": "castle",
+   "lat": 33.560278,
+   "lon": 36.127815,
    "alt": null,
    "h": null
   },
