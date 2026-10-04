@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -223,6 +223,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val needLos = lastLosFix?.let { moved(it, fix) > AppConfig.LOS_RECALC_DISTANCE_M } ?: true
         if (needLos) recompute(fix)
     }
+
+    /** Re-evaluates all targets now (called after the user's private points changed). */
+    fun refreshTargets() = forceRecompute()
 
     private fun forceRecompute() {
         lastLosFix = null

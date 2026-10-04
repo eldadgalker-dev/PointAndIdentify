@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -35,6 +35,15 @@ class ZoomBarView @JvmOverloads constructor(
 
     /** Called while the user drags; argument is the new position 0..1. */
     var onValueChanged: ((Float) -> Unit)? = null
+
+    /** True when the bar sits on the left edge: the track moves left and the labels go to its right. */
+    var onLeft: Boolean = false
+        set(v) {
+            if (v != field) {
+                field = v
+                invalidate()
+            }
+        }
 
     var value: Float = 0f
         set(v) {
@@ -109,12 +118,12 @@ class ZoomBarView @JvmOverloads constructor(
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        val x = width - trackInsetRightDp * density
+        val x = if (onLeft) trackInsetRightDp * density else width - trackInsetRightDp * density
         val top = trackTop()
         val bottom = trackBottom()
         if (bottom <= top) return
         val thumbY = bottom - value * (bottom - top)
-        val labelRight = x - (thumbRadiusDp + labelGapDp) * density
+        val labelAnchor = if (onLeft) x + (thumbRadiusDp + labelGapDp) * density else x - (thumbRadiusDp + labelGapDp) * density
 
         canvas.drawLine(x, top, x, bottom, trackPaint)
         canvas.drawLine(x, bottom, x, thumbY, fillPaint)
@@ -122,26 +131,28 @@ class ZoomBarView @JvmOverloads constructor(
         // Range limits at the bar ends; skipped when the thumb label would sit on top of them.
         val clearance = valuePaint.textSize * 1.6f
         if (maxLabel.isNotEmpty() && thumbY - top > clearance) {
-            drawPlated(canvas, maxLabel, limitPaint, labelRight, top)
+            drawPlated(canvas, maxLabel, limitPaint, labelAnchor, top)
         }
         if (minLabel.isNotEmpty() && bottom - thumbY > clearance) {
-            drawPlated(canvas, minLabel, limitPaint, labelRight, bottom)
+            drawPlated(canvas, minLabel, limitPaint, labelAnchor, bottom)
         }
 
         canvas.drawCircle(x, thumbY, thumbRadiusDp * density, thumbPaint)
         canvas.drawCircle(x, thumbY, thumbRadiusDp * density, thumbRingPaint)
-        if (valueLabel.isNotEmpty()) drawPlated(canvas, valueLabel, valuePaint, labelRight, thumbY)
+        if (valueLabel.isNotEmpty()) drawPlated(canvas, valueLabel, valuePaint, labelAnchor, thumbY)
     }
 
-    /** Text right-aligned at xRight, vertically centred on yCentre, on a dark rounded plate. */
-    private fun drawPlated(canvas: Canvas, text: String, paint: Paint, xRight: Float, yCentre: Float) {
+    /** Text anchored at xAnchor (its right end on a right-edge bar, its left end on a left-edge bar), centred on yCentre, on a dark plate. */
+    private fun drawPlated(canvas: Canvas, text: String, paint: Paint, xAnchor: Float, yCentre: Float) {
+        paint.textAlign = if (onLeft) Paint.Align.LEFT else Paint.Align.RIGHT
         val pad = 4f * density
         val w = paint.measureText(text)
         val fm = paint.fontMetrics
         val baseline = yCentre - (fm.ascent + fm.descent) / 2f
-        plateRect.set(xRight - w - pad, baseline + fm.ascent - pad / 2, xRight + pad, baseline + fm.descent + pad / 2)
+        val left = if (onLeft) xAnchor - pad else xAnchor - w - pad
+        plateRect.set(left, baseline + fm.ascent - pad / 2, left + w + 2 * pad, baseline + fm.descent + pad / 2)
         canvas.drawRoundRect(plateRect, pad, pad, platePaint)
-        canvas.drawText(text, xRight, baseline, paint)
+        canvas.drawText(text, xAnchor, baseline, paint)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {

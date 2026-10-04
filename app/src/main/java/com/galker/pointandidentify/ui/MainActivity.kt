@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -11,12 +11,15 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.content.DialogInterface
 import android.os.Process
+import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +36,8 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.ZoomState
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.constraintlayout.widget.ConstraintSet
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.Lifecycle
@@ -44,6 +49,7 @@ import com.google.android.material.button.MaterialButton
 import com.galker.pointandidentify.capture.PhotoExporter
 import com.galker.pointandidentify.capture.PhotoMeta
 import com.galker.pointandidentify.config.AppConfig
+import com.galker.pointandidentify.data.PrivatePoint
 import com.galker.pointandidentify.databinding.ActivityMainBinding
 import com.galker.pointandidentify.domain.CompassReport
 import com.galker.pointandidentify.domain.CompassVerdict
@@ -112,6 +118,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        applyZoomBarSide()
 
         // Single background executor for capture callbacks: decoding never runs on the UI thread.
         cameraExecutor = Executors.newSingleThreadExecutor()
@@ -208,10 +215,28 @@ class MainActivity : AppCompatActivity() {
                 onUpdateClicked()
             }
         }
+        val barOnRight = UserSettings.zoomBarOnRight(this)
+        val switchBarSide = MaterialButton(this).apply {
+            text = getString(if (barOnRight) R.string.settings_zoom_bar_right else R.string.settings_zoom_bar_left)
+            setOnClickListener {
+                dialog?.dismiss()
+                UserSettings.setZoomBarOnRight(this@MainActivity, !barOnRight)
+                applyZoomBarSide()
+            }
+        }
+        val privatePoints = MaterialButton(this).apply {
+            text = getString(R.string.settings_private_points)
+            setOnClickListener {
+                dialog?.dismiss()
+                showPrivatePoints()
+            }
+        }
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(switchLanguage)
+            addView(switchBarSide)
+            addView(privatePoints)
             addView(checkUpdate)
         }
         dialog = AlertDialog.Builder(this)
@@ -219,6 +244,105 @@ class MainActivity : AppCompatActivity() {
             .setView(box)
             .setNegativeButton(R.string.dialog_close, null)
             .show()
+    }
+
+    /** Puts the zoom bar on the chosen edge and the compass on the opposite one. */
+    private fun applyZoomBarSide() {
+        val onRight = UserSettings.zoomBarOnRight(this)
+        val root = binding.root as ConstraintLayout
+        val set = ConstraintSet()
+        set.clone(root)
+        val density = resources.displayMetrics.density
+        fun pin(id: Int, toRight: Boolean, marginDp: Float) {
+            set.clear(id, ConstraintSet.LEFT)
+            set.clear(id, ConstraintSet.RIGHT)
+            val side = if (toRight) ConstraintSet.RIGHT else ConstraintSet.LEFT
+            set.connect(id, side, ConstraintSet.PARENT_ID, side, (marginDp * density).toInt())
+        }
+        pin(R.id.zoomBar, onRight, ZOOM_BAR_MARGIN_DP)
+        pin(R.id.compassView, !onRight, COMPASS_MARGIN_DP)
+        set.applyTo(root)
+        binding.zoomBar.onLeft = !onRight
+        binding.overlayView.zoomBarOnLeft = !onRight
+    }
+
+    // ===== Private points =====
+
+    private fun privateStore() = (application as com.galker.pointandidentify.PointApp).targetRepository.privatePoints
+
+    /** List of the user's own points (tap one to delete it) with an Add button. */
+    private fun showPrivatePoints() {
+        val points = privateStore().all()
+        val builder = AlertDialog.Builder(this)
+            .setPositiveButton(R.string.points_add) { _, _ -> showAddPoint() }
+            .setNegativeButton(R.string.dialog_close, null)
+        if (points.isEmpty()) {
+            builder.setTitle(R.string.points_title).setMessage(R.string.points_empty)
+        } else {
+            val items = points.map { getString(R.string.points_item, it.name, it.lat, it.lon) }.toTypedArray()
+            builder.setTitle(getString(R.string.points_title) + "\n" + getString(R.string.points_hint_delete))
+                .setItems(items) { _, index -> confirmDeletePoint(index, points[index]) }
+        }
+        builder.show()
+    }
+
+    private fun confirmDeletePoint(index: Int, point: PrivatePoint) {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.points_delete_title)
+            .setMessage(getString(R.string.points_delete_msg, point.name))
+            .setPositiveButton(R.string.dialog_yes) { _, _ ->
+                privateStore().removeAt(index)
+                vm.refreshTargets()
+                showPrivatePoints()
+            }
+            .setNegativeButton(R.string.dialog_no) { _, _ -> showPrivatePoints() }
+            .show()
+    }
+
+    /** Form for a new point; coordinates start as the current location and can be edited. */
+    private fun showAddPoint() {
+        val fix = vm.ui.value.fix
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val numeric = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL or InputType.TYPE_NUMBER_FLAG_SIGNED
+        fun field(hintRes: Int, initial: String, type: Int) = EditText(this).apply {
+            setHint(hintRes)
+            setText(initial)
+            inputType = type
+        }
+        val nameField = field(R.string.points_name_hint, getString(R.string.points_default_name), InputType.TYPE_CLASS_TEXT)
+        val latField = field(R.string.points_lat_hint, fix?.let { String.format(java.util.Locale.US, "%.5f", it.lat) } ?: "", numeric)
+        val lonField = field(R.string.points_lon_hint, fix?.let { String.format(java.util.Locale.US, "%.5f", it.lon) } ?: "", numeric)
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            addView(nameField)
+            addView(latField)
+            addView(lonField)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.points_add_title)
+            .setView(box)
+            .setPositiveButton(R.string.points_save, null) // click handler set below so invalid input keeps the dialog open
+            .setNegativeButton(R.string.dialog_close, null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val name = nameField.text.toString().trim()
+                val lat = latField.text.toString().trim().replace(',', '.').toDoubleOrNull()
+                val lon = lonField.text.toString().trim().replace(',', '.').toDoubleOrNull()
+                if (name.isEmpty() || name.length > MAX_POINT_NAME_LENGTH ||
+                    lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0
+                ) {
+                    toast(getString(R.string.points_invalid))
+                } else {
+                    privateStore().add(PrivatePoint(name, lat, lon))
+                    vm.refreshTargets()
+                    toast(getString(R.string.points_saved))
+                    dialog.dismiss()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun showHelp() {
@@ -558,6 +682,7 @@ class MainActivity : AppCompatActivity() {
         TargetKind.CASTLE -> R.string.kind_castle
         TargetKind.RUINS -> R.string.kind_ruins
         TargetKind.MONUMENT -> R.string.kind_monument
+        TargetKind.PRIVATE -> R.string.kind_private
         TargetKind.OTHER -> R.string.kind_other
     }
 
@@ -654,5 +779,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "MainActivity"
         private const val EXIT_KILL_DELAY_MS = 1_500L
+        private const val ZOOM_BAR_MARGIN_DP = 4f
+        private const val COMPASS_MARGIN_DP = 8f
+        private const val MAX_POINT_NAME_LENGTH = 60
     }
 }

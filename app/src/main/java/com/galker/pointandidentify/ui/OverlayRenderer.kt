@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -36,13 +36,15 @@ data class OverlayContent(
  *  bottomPx        : space kept free at the bottom (e.g. above the capture button in the live view)
  *  bottomGapPx     : gap between the data block and that free space (null = the standard margin)
  *  sideExtraPx     : additional inset of the data block from both side edges
- *  rightReservedPx : width kept free at the right edge (zoom bar); texts are laid out left of it
+ *  reservedPx      : width kept free at one side edge (zoom bar); the data block is laid out beside it
+ *  reservedOnLeft  : which edge the reserved strip is on
  */
 data class OverlayInsets(
     val bottomPx: Float = 0f,
     val bottomGapPx: Float? = null,
     val sideExtraPx: Float = 0f,
-    val rightReservedPx: Float = 0f
+    val reservedPx: Float = 0f,
+    val reservedOnLeft: Boolean = false
 )
 
 /**
@@ -108,11 +110,11 @@ class OverlayRenderer {
 
         val margin = unit * marginRatio
         // Title is centred, so the reserved right strip is mirrored on the left to keep it centred on the crosshair.
-        val titleLeft = margin + insets.rightReservedPx
+        val titleLeft = margin + insets.reservedPx
         val titleWidth = (width - 2 * titleLeft).toInt().coerceAtLeast(1)
         // Data block: inset from both sides, and its right end stops before the reserved strip.
-        val blockLeft = margin + insets.sideExtraPx
-        val blockWidth = (width - 2 * blockLeft - insets.rightReservedPx).toInt().coerceAtLeast(1)
+        val blockLeft = margin + insets.sideExtraPx + if (insets.reservedOnLeft) insets.reservedPx else 0f
+        val blockWidth = (width - 2 * (margin + insets.sideExtraPx) - insets.reservedPx).toInt().coerceAtLeast(1)
 
         // Title block above the crosshair: secondary line closest, primary above it.
         val secondary = layout(content.secondary, secondaryPaint, titleWidth, Layout.Alignment.ALIGN_CENTER, direction)

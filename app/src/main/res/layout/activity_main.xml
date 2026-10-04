@@ -33,35 +33,17 @@
         android:textColor="@android:color/white"
         android:textDirection="locale"
         android:textSize="17sp"
-        app:layout_constraintEnd_toStartOf="@id/topButtons"
+        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <LinearLayout
-        android:id="@+id/topButtons"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_margin="8dp"
-        android:orientation="vertical"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/exitButton"
-            style="@style/Widget.Material3.Button.TonalButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/btn_exit"
-            android:textSize="16sp" />
-    </LinearLayout>
-
-    <!-- Everything under the top blocks (status text, buttons) starts below this barrier. -->
+    <!-- Everything under the status block starts below this barrier. -->
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/topBarrier"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="bottom"
-        app:constraint_referenced_ids="dataStatusText,topButtons" />
+        app:constraint_referenced_ids="dataStatusText" />
 
     <!-- Small north indicator, left edge (the zoom bar owns the right edge); camera heading below it. -->
     <com.galker.pointandidentify.ui.CompassView
@@ -87,6 +69,7 @@
         android:textSize="20sp"
         android:textStyle="bold"
         app:layout_constraintLeft_toLeftOf="@id/compassView"
+        app:layout_constraintRight_toRightOf="@id/compassView"
         app:layout_constraintTop_toBottomOf="@id/compassView" />
 
     <!-- Zoom: vertical bar on the right edge, minimum at the bottom, maximum at the top, zoom value at the thumb.
@@ -104,7 +87,7 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/captureButton"
-        android:layout_width="150dp"
+        android:layout_width="110dp"
         android:layout_height="60dp"
         android:layout_marginBottom="20dp"
         android:backgroundTint="#D32F2F"
@@ -115,13 +98,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <!-- Bottom row: help on the left, capture in the middle, settings (gear icon) on the right. -->
+    <!-- Bottom row: exit, help, capture (middle), settings (gear icon). -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/helpButton"
         style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginRight="16dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginRight="8dp"
         android:contentDescription="@string/btn_help"
         android:insetLeft="0dp"
         android:insetTop="0dp"
@@ -129,28 +112,47 @@
         android:insetBottom="0dp"
         android:padding="0dp"
         android:text="@string/btn_help_symbol"
-        android:textSize="24sp"
-        app:cornerRadius="28dp"
+        android:textSize="22sp"
+        app:cornerRadius="24dp"
         app:layout_constraintBottom_toBottomOf="@id/captureButton"
         app:layout_constraintRight_toLeftOf="@id/captureButton"
         app:layout_constraintTop_toTopOf="@id/captureButton" />
 
     <com.google.android.material.button.MaterialButton
+        android:id="@+id/exitButton"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginRight="8dp"
+        android:contentDescription="@string/btn_exit"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="@string/btn_exit_symbol"
+        android:textSize="20sp"
+        app:cornerRadius="24dp"
+        app:layout_constraintBottom_toBottomOf="@id/captureButton"
+        app:layout_constraintRight_toLeftOf="@id/helpButton"
+        app:layout_constraintTop_toTopOf="@id/captureButton" />
+
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/settingsButton"
         style="@style/Widget.Material3.Button.TonalButton"
-        android:layout_width="56dp"
-        android:layout_height="56dp"
-        android:layout_marginLeft="16dp"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginLeft="8dp"
         android:contentDescription="@string/btn_settings"
         android:insetLeft="0dp"
         android:insetTop="0dp"
         android:insetRight="0dp"
         android:insetBottom="0dp"
         android:padding="0dp"
-        app:cornerRadius="28dp"
+        app:cornerRadius="24dp"
         app:iconGravity="textStart"
         app:iconPadding="0dp"
-        app:iconSize="30dp"
+        app:iconSize="26dp"
         app:layout_constraintBottom_toBottomOf="@id/captureButton"
         app:layout_constraintLeft_toRightOf="@id/captureButton"
         app:layout_constraintTop_toTopOf="@id/captureButton" />

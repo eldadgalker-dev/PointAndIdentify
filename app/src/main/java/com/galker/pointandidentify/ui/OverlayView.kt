@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.ui
 
 import android.content.Context
@@ -30,12 +30,22 @@ class OverlayView @JvmOverloads constructor(
             }
         }
 
+    /** True when the zoom bar is on the left edge, so the data block keeps clear of that side. */
+    var zoomBarOnLeft: Boolean = false
+        set(value) {
+            if (field != value) {
+                field = value
+                invalidate()
+            }
+        }
+
     private val insets: OverlayInsets
         get() = OverlayInsets(
             bottomPx = bottomInsetPx,
             bottomGapPx = mm(BOTTOM_GAP_MM),
             sideExtraPx = mm(SIDE_EXTRA_MM),
-            rightReservedPx = resources.displayMetrics.density * ZOOM_BAR_RESERVED_DP
+            reservedPx = resources.displayMetrics.density * ZOOM_BAR_RESERVED_DP,
+            reservedOnLeft = zoomBarOnLeft
         )
 
     private fun mm(value: Float): Float =

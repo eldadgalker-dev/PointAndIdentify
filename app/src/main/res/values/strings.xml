@@ -53,7 +53,7 @@
     <string name="compass_uncalibrated">Compass not calibrated – move the phone in a figure-8</string>
     <string name="compass_north">N</string>
     <string name="azimuth_value">%1$d°</string>
-    <string name="data_status">Terrain tiles: %1$d/%2$d\nTargets: %3$d</string>
+    <string name="data_status">Terrain tiles: %1$d/%2$d&#8195;&#8195;&#8195;Targets: %3$d</string>
     <string name="data_offline">Offline mode – stored data only</string>
 
     <string name="btn_capture">Capture</string>
@@ -67,7 +67,7 @@
     <string name="exit_msg">Shut the app down completely?</string>
     <string name="identify_title">Targets in the crosshair (zoom ×%1$.1f)</string>
     <string name="identify_none">No target found in the crosshair. Aim the cross at a target or reduce the zoom.</string>
-    <string name="identify_line">%1$d. %2$s – %3$s\n    Range %4$.1f km\n    Offset from cross %5$.1f°\n    %6$s</string>
+    <string name="identify_line">Target %1$d: %2$s – %3$s\n    Range %4$.1f km\n    Offset from cross %5$.1f°\n    %6$s</string>
     <string name="identify_visible">Visible</string>
     <string name="identify_hidden">Hidden</string>
     <string name="identify_unknown">No terrain data</string>
@@ -78,7 +78,7 @@
     <string name="settings_check_update">Check for updates</string>
 
     <string name="help_title">Help</string>
-    <string name="help_text">PointAndIdentify identifies the target the camera is pointed at (settlement, mountain, tower and more) and checks against a terrain model whether it is really visible from where you stand.\n\nCrosshair\nAim the center of the crosshair at the target. Green crosshair: the target is in direct line of sight. Red crosshair: the target is hidden by terrain, or there is no terrain data. The crosshair grows with the zoom.\n\nIdentify\nTap inside the crosshair to list the targets inside it, ranked by offset from the center.\n\nZoom\nThe bar on the right: minimum at the bottom, maximum at the top, with the current zoom next to the handle. You can also pinch the screen. Beyond the camera\'s own zoom, an extra calculated (digital) zoom applies, at lower quality.\n\nCompass\nOn the left: the red arrow points to true north and the yellow mark at the top is the camera direction. Below it is the camera heading in degrees from true north.\n\nData\nAt the bottom: observer position and accuracy, eye height, vertical angle, and the target details: type, height, position, range, azimuth, angle and line-of-sight clearance.\n\nCapture\nSaves a photo to the gallery (DCIM/PointAndIdentify) with the crosshair and data burned in, and position and direction in the photo metadata (EXIF).\n\nSettings (gear icon)\nSwitch the language between Hebrew and English, and check for app updates.\n\nExit\nCloses the app completely.\n\nCompass not calibrated: move the phone in a figure-8 in the air and stay away from metal and magnets. Heading accuracy on a phone is about ±3–5°.</string>
+    <string name="help_text">PointAndIdentify identifies the target the camera is pointed at (settlement, mountain, tower and more) and checks against a terrain model whether it is really visible from where you stand.\n\nCrosshair\nAim the center of the crosshair at the target. Green crosshair: the target is in direct line of sight. Red crosshair: the target is hidden by terrain, or there is no terrain data. The crosshair grows with the zoom.\n\nIdentify\nTap inside the crosshair to list the targets inside it, ranked by offset from the center.\n\nZoom\nThe bar at the side of the screen: minimum at the bottom, maximum at the top, with the current zoom next to the handle. You can also pinch the screen. Beyond the camera\'s own zoom, an extra calculated (digital) zoom applies, at lower quality. In Settings you can place the bar on the right or on the left.\n\nCompass\nOn the opposite side of the bar: the red arrow points to true north and the yellow mark at the top is the camera direction. Below it is the camera heading in degrees from true north.\n\nData\nAt the bottom: observer position and accuracy, eye height, vertical angle, and the target details: type, height, position, range, azimuth, angle and line-of-sight clearance.\n\nCapture\nSaves a photo to the gallery (DCIM/PointAndIdentify) with the crosshair and data burned in, and position and direction in the photo metadata (EXIF).\n\nSettings (gear icon)\nSwitch the language between Hebrew and English, the zoom bar side, private points, and the app update check.\n\nPrivate points\nSave a place of your own, for example “Home”, from your current location or from coordinates. A saved point is identified like any other target when you aim at it from another place, including the line-of-sight check.\n\nExit\nThe ✕ button in the bottom row closes the app completely.\n\nCompass not calibrated: move the phone in a figure-8 in the air and stay away from metal and magnets. Heading accuracy on a phone is about ±3–5°.</string>
 
     <string name="perm_missing">Camera or location permission is missing</string>
     <string name="camera_error">Camera initialization error</string>
@@ -96,4 +96,25 @@
     <string name="update_allow_install">Allow installation from this source, then check for updates again</string>
     <string name="dialog_yes">Yes</string>
     <string name="dialog_no">No</string>
+
+    <string name="btn_exit_symbol">✕</string>
+    <string name="settings_zoom_bar_right">Zoom bar: right – move to left</string>
+    <string name="settings_zoom_bar_left">Zoom bar: left – move to right</string>
+    <string name="settings_private_points">Private points</string>
+    <string name="points_title">Private points</string>
+    <string name="points_empty">No private points yet. A point can be aimed at from another location, like any other target.</string>
+    <string name="points_hint_delete">Tap a point to delete it.</string>
+    <string name="points_add">Add point</string>
+    <string name="points_add_title">New private point</string>
+    <string name="points_name_hint">Name</string>
+    <string name="points_lat_hint">Latitude</string>
+    <string name="points_lon_hint">Longitude</string>
+    <string name="points_default_name">Home</string>
+    <string name="points_save">Save</string>
+    <string name="points_invalid">Enter a name and valid coordinates</string>
+    <string name="points_saved">Point saved</string>
+    <string name="points_delete_title">Delete point</string>
+    <string name="points_delete_msg">Delete %1$s?</string>
+    <string name="points_item">%1$s  (%2$.5f, %3$.5f)</string>
+    <string name="kind_private">Private point</string>
 </resources>
