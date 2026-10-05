@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.10
+// Version 1.11
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -318,9 +318,58 @@ class MainActivity : AppCompatActivity() {
         } else {
             val items = points.map { getString(R.string.points_item, it.name, it.lat, it.lon) }.toTypedArray()
             builder.setTitle(getString(R.string.points_title) + "\n" + getString(R.string.points_hint_delete))
-                .setItems(items) { _, index -> confirmDeletePoint(index, points[index]) }
+                .setItems(items) { _, index -> showPointActions(index, points[index]) }
         }
         builder.show()
+    }
+
+    /** Tap on a saved point: rename it or delete it. */
+    private fun showPointActions(index: Int, point: PrivatePoint) {
+        AlertDialog.Builder(this)
+            .setTitle(point.name)
+            .setItems(arrayOf(getString(R.string.points_action_rename), getString(R.string.points_action_delete))) { _, which ->
+                if (which == 0) showRenamePoint(index, point) else confirmDeletePoint(index, point)
+            }
+            .setNegativeButton(R.string.dialog_close) { _, _ -> showPrivatePoints() }
+            .show()
+    }
+
+    /** Only the name changes: the coordinates stay as saved. */
+    private fun showRenamePoint(index: Int, point: PrivatePoint) {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            setText(point.name)
+            setSelection(text.length)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine()
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.points_rename_title)
+            .setView(box)
+            .setPositiveButton(R.string.points_save, null) // click handler set below so invalid input keeps the dialog open
+            .setNegativeButton(R.string.dialog_close) { _, _ -> showPrivatePoints() }
+            .create()
+        dialog.setOnShowListener {
+            input.requestFocus()
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val name = input.text.toString().trim()
+                if (name.isEmpty() || name.length > MAX_POINT_NAME_LENGTH) {
+                    toast(getString(R.string.points_invalid_name))
+                } else {
+                    privateStore().rename(index, name)
+                    vm.refreshTargets()
+                    toast(getString(R.string.points_renamed))
+                    dialog.dismiss()
+                    showPrivatePoints()
+                }
+            }
+        }
+        dialog.show()
     }
 
     private fun confirmDeletePoint(index: Int, point: PrivatePoint) {

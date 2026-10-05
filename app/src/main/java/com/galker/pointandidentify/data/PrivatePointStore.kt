@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -40,6 +40,15 @@ class PrivatePointStore(context: Context) {
     fun removeAt(index: Int) {
         val current = all()
         if (index in current.indices) save(current.filterIndexed { i, _ -> i != index })
+    }
+
+    /** Changes the name of the point at [index]; false when the index is out of range. */
+    @Synchronized
+    fun rename(index: Int, newName: String): Boolean {
+        val current = all()
+        if (index !in current.indices) return false
+        save(current.mapIndexed { i, p -> if (i == index) p.copy(name = newName) else p })
+        return true
     }
 
     private fun save(points: List<PrivatePoint>) {

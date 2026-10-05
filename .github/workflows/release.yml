@@ -113,11 +113,14 @@ jobs:
           printf '{"versionCode": %d, "versionName": "%s", "sha256": "%s"}\n' \
             "${{ github.run_number }}" "${{ steps.ver.outputs.version }}" "$SHA" > version.json
           cat version.json
+          # Anonymous counters: the app downloads these tiny files (no identifier); the release page counts the downloads.
+          printf '{"purpose": "counts new installations", "versionName": "%s"}\n' "${{ steps.ver.outputs.version }}" > install.json
+          printf '{"purpose": "counts devices running this version", "versionName": "%s"}\n' "${{ steps.ver.outputs.version }}" > launch.json
 
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ steps.ver.outputs.version }}"
-          gh release create "$TAG" PointAndIdentify.apk version.json \
+          gh release create "$TAG" PointAndIdentify.apk version.json install.json launch.json \
             --target "$GITHUB_SHA" --title "PointAndIdentify ${{ steps.ver.outputs.version }}" --generate-notes

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify
 
 import android.app.Application
@@ -12,6 +12,7 @@ import com.galker.pointandidentify.data.dem.DemTileRepository
 import com.galker.pointandidentify.data.net.HttpClient
 import com.galker.pointandidentify.ui.LanguageManager
 import com.galker.pointandidentify.update.UpdateManager
+import com.galker.pointandidentify.update.UsagePing
 
 /**
  * Application-scoped service locator. Singletons live here, never in an Activity scope,
@@ -29,6 +30,8 @@ class PointApp : Application() {
         private set
     lateinit var updateManager: UpdateManager
         private set
+    lateinit var usagePing: UsagePing
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -43,5 +46,6 @@ class PointApp : Application() {
             manifestRepository = manifestRepository
         )
         updateManager = UpdateManager(this, httpClient)
+        usagePing = UsagePing(this, httpClient)
     }
 }

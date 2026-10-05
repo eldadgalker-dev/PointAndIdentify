@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -42,6 +42,7 @@ android {
         // Data and update endpoints are composed from gradle.properties, not hardcoded in sources.
         buildConfigField("String", "DATA_BASE_URL", "\"$rawHost/$githubOwner/$githubRepo/$githubBranch/data\"")
         buildConfigField("String", "RELEASE_LATEST_URL", "\"$webHost/$githubOwner/$githubRepo/releases/latest/download\"")
+        buildConfigField("String", "RELEASE_TAG_URL", "\"$webHost/$githubOwner/$githubRepo/releases/download\"")
     }
 
     signingConfigs {

@@ -4,7 +4,7 @@
   This software is released under the BSD 3-Clause License.
   See the LICENSE.txt file in the project root for full license information.
 -->
-<!-- Version 1.1 -->
+<!-- Version 1.2 -->
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -74,6 +74,8 @@
   <div class="totals" id="totals" hidden>
     <div class="total"><span class="num" id="totalDownloads">0</span><span class="lbl">הורדות קובץ ההתקנה (APK)</span></div>
     <div class="total"><span class="num" id="totalChecks">0</span><span class="lbl">בדיקות עדכון</span></div>
+    <div class="total"><span class="num" id="totalInstalls">0</span><span class="lbl">התקנות חדשות (ייחודיות)</span></div>
+    <div class="total"><span class="num" id="latestDevices">0</span><span class="lbl">מכשירים שהפעילו את הגרסה האחרונה</span></div>
     <div class="total"><span class="num" id="totalReleases">0</span><span class="lbl">גרסאות שפורסמו</span></div>
   </div>
 
@@ -86,6 +88,8 @@
           <th scope="col">תאריך פרסום</th>
           <th scope="col" class="num">הורדות</th>
           <th scope="col" class="num">בדיקות עדכון</th>
+          <th scope="col" class="num">התקנות חדשות</th>
+          <th scope="col" class="num">מכשירים בגרסה</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -94,9 +98,12 @@
 
   <h2>איך לקרוא את המספרים</h2>
   <ul>
+    <li><strong>התקנות חדשות</strong>: האפליקציה מורידה פעם אחת, בהפעלה הראשונה של התקנה חדשה (לא אחרי עדכון), קובץ זעיר בשם <code>install.json</code>. כל הורדה היא התקנה אחת, ולכן הספירה ייחודית להתקנה. התקנה מחדש נספרת שוב.</li>
+    <li><strong>מכשירים בגרסה</strong>: פעם אחת לכל גרסה מותקנת, בהפעלתה הראשונה, האפליקציה מורידה את <code>launch.json</code> של אותה גרסה. המספר הוא כמה התקנות הפעילו את הגרסה לפחות פעם אחת. "מכשירים שהפעילו את הגרסה האחרונה" הוא המספר בשורה העליונה, כלומר כמה מהמשתמשים כבר מעודכנים. "–" אומר שהגרסה פורסמה לפני שהוספה הספירה.</li>
     <li><strong>הורדות</strong>: כל הורדה של הקובץ <code>PointAndIdentify.apk</code>, בין אם מהדפדפן ובין אם כעדכון מתוך האפליקציה. הורדה נספרת בגרסה שהייתה האחרונה ברגע ההורדה.</li>
     <li><strong>בדיקות עדכון</strong>: כל בדיקה מורידה את הקובץ <code>version.json</code> (האפליקציה בודקת בכל הפעלה ובלחיצה על "בדוק עדכון"). בדיקה נספרת בגרסה שהייתה האחרונה ברגע הבדיקה, ולא בגרסה המותקנת בטלפון.</li>
-    <li>המספרים הם <strong>ספירת הורדות</strong>, ולא ספירת משתמשים: אין זיהוי של מכשיר או אדם, ולכן אי אפשר לדעת כמה משתמשים ייחודיים התקינו, או כמה מהם מעודכנים לגרסה האחרונה.</li>
+    <li><strong>פרטיות</strong>: הבקשה אינה נושאת מזהה, חשבון, מיקום או נתוני אפליקציה. כמו בכל הורדה, GitHub רואה את כתובת הרשת של הפונה. אין שרת איסוף משלנו, ואין אפשרות לדעת מי המשתמש.</li>
+    <li>הספירה אינה זיהוי של אדם: משתמש שמתקין מחדש או מנקה את נתוני האפליקציה נספר שוב, ומכשיר שמעולם לא התחבר לאינטרנט אינו נספר.</li>
     <li>ספירה מתחילה מהרגע שבו כל גרסה פורסמה. הורדות של כלי אוטומטיים נספרות גם הן.</li>
   </ul>
 </main>
@@ -115,6 +122,8 @@
   const REPO = "PointAndIdentify";
   const APK_ASSET = "PointAndIdentify.apk";
   const VERSION_ASSET = "version.json";
+  const INSTALL_ASSET = "install.json";
+  const LAUNCH_ASSET = "launch.json";
   const PER_PAGE = 100; // GitHub maximum per page
 
   // Template content lives in a separate fragment: document.querySelector cannot see it.
@@ -122,10 +131,12 @@
   const text = (key) => strings.querySelector('[data-key="' + key + '"]').textContent;
   const fmt = (n) => n.toLocaleString("en-US");
 
+  // null = the release has no such file (published before the counter existed).
   function countOf(release, name) {
     const asset = release.assets.find((a) => a.name === name);
-    return asset ? asset.download_count : 0;
+    return asset ? asset.download_count : null;
   }
+  const show = (n) => (n === null ? "\u2013" : fmt(n));
 
   function render(releases) {
     const status = document.getElementById("status");
@@ -133,18 +144,24 @@
     const rows = document.getElementById("rows");
     let downloads = 0;
     let checks = 0;
+    let installs = 0;
     releases.forEach((rel, i) => {
       const d = countOf(rel, APK_ASSET);
       const c = countOf(rel, VERSION_ASSET);
-      downloads += d;
-      checks += c;
+      const inst = countOf(rel, INSTALL_ASSET);
+      const dev = countOf(rel, LAUNCH_ASSET);
+      downloads += d || 0;
+      checks += c || 0;
+      installs += inst || 0;
       const tr = document.createElement("tr");
       if (i === 0) tr.className = "latest";
       const cells = [
         rel.name || rel.tag_name,
         new Date(rel.published_at).toLocaleDateString("he-IL"),
-        fmt(d),
-        fmt(c)
+        show(d),
+        show(c),
+        show(inst),
+        show(dev)
       ];
       cells.forEach((value, k) => {
         const td = document.createElement("td");
@@ -158,6 +175,8 @@
     document.getElementById("totalDownloads").textContent = fmt(downloads);
     document.getElementById("totalChecks").textContent = fmt(checks);
     document.getElementById("totalReleases").textContent = fmt(releases.length);
+    document.getElementById("totalInstalls").textContent = fmt(installs);
+    document.getElementById("latestDevices").textContent = show(countOf(releases[0], LAUNCH_ASSET));
     document.getElementById("totals").hidden = false;
     document.getElementById("table").hidden = false;
     status.textContent = text("updated") + new Date().toLocaleString("he-IL");

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.10
+// Version 1.11
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -220,6 +220,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (updateCheckDone) return
         updateCheckDone = true
         checkForUpdate(silent = true)
+        viewModelScope.launch { services.usagePing.sendIfDue() } // anonymous per-version counter, see UsagePing
     }
 
     /** Runs once per process after permissions are granted: compass health. */

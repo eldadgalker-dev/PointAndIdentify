@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.9
+// Version 1.10
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -21,6 +21,10 @@ object AppConfig {
     const val MANIFEST_FILE = "manifest.json"
     const val RELEASE_APK_ASSET = "PointAndIdentify.apk"
     const val RELEASE_VERSION_ASSET = "version.json"
+    val RELEASE_TAG_URL: String = BuildConfig.RELEASE_TAG_URL      // .../releases/download (followed by /v<version>/<asset>)
+    const val RELEASE_INSTALL_ASSET = "install.json"   // downloaded once per fresh installation: counts new installs
+    const val RELEASE_LAUNCH_ASSET = "launch.json"     // downloaded once per installed version: counts devices per version
+    const val USAGE_PING_MAX_FAILURES = 3              // attempts per version before the counter gives up
 
     // ===== Parameters: terrain tiles =====
     const val TILE_DEG = 0.1                  // deg, tile edge length (lat and lon)
@@ -111,6 +115,7 @@ object AppConfig {
         require(PREVIEW_ASPECT in 0.1..1.0) { "PREVIEW_ASPECT must be a portrait ratio" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
+        require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
         require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {
