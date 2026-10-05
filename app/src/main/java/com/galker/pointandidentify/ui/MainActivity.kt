@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.12
+// Version 1.13
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -190,6 +190,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         vm.startUpdateCheckOnce() // every launch checks for a newer version, even before permissions are granted
         vm.orientationProvider.start()
+        vm.pressureProvider.start()
         if (hasCorePermissions()) {
             vm.startLocation()
             vm.startStartupChecks() // compass health; runs once per process
@@ -199,6 +200,7 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         vm.orientationProvider.stop()
+        vm.pressureProvider.stop()
         vm.stopLocation()
     }
 
@@ -268,6 +270,15 @@ class MainActivity : AppCompatActivity() {
                 showObserverHeight()
             }
         }
+        val sensorHeightOn = UserSettings.sensorHeightEnabled(this)
+        val sensorHeight = MaterialButton(this).apply {
+            text = getString(if (sensorHeightOn) R.string.settings_sensor_height_on else R.string.settings_sensor_height_off)
+            setOnClickListener {
+                dialog?.dismiss()
+                UserSettings.setSensorHeightEnabled(this@MainActivity, !sensorHeightOn)
+                vm.refreshTargets() // visibility depends on the height
+            }
+        }
         val privatePoints = MaterialButton(this).apply {
             text = getString(R.string.settings_private_points)
             setOnClickListener {
@@ -282,6 +293,7 @@ class MainActivity : AppCompatActivity() {
             addView(switchBarSide)
             addView(privatePoints)
             addView(observerHeight)
+            addView(sensorHeight)
             addView(checkUpdate)
         }
         dialog = AlertDialog.Builder(this)
@@ -324,6 +336,17 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(TextView(this@MainActivity).apply { setText(R.string.observer_height_hint) })
+            addView(TextView(this@MainActivity).apply {
+                val s = vm.ui.value
+                val h = s.sensorHeightM
+                val sigma = s.sensorSigmaM
+                setPadding(0, pad / 2, 0, pad / 2)
+                text = if (h != null && sigma != null) {
+                    getString(R.string.observer_height_sensor, fmt("%.0f", h), fmt("%.0f", sigma))
+                } else {
+                    getString(R.string.observer_height_sensor_none)
+                }
+            })
             addView(input)
         }
         val dialog = AlertDialog.Builder(this)

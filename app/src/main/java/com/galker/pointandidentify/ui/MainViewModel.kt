@@ -1,16 +1,19 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.12
+// Version 1.13
 package com.galker.pointandidentify.ui
 
 import android.app.Application
+import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.galker.pointandidentify.PointApp
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.data.dem.DemTileRepository
+import com.galker.pointandidentify.domain.AltitudeEstimate
+import com.galker.pointandidentify.domain.BaroGpsFusion
 import com.galker.pointandidentify.domain.Candidate
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassReport
@@ -29,6 +32,7 @@ import com.galker.pointandidentify.location.LocationProvider
 import com.galker.pointandidentify.location.ObserverFix
 import com.galker.pointandidentify.sensors.Orientation
 import com.galker.pointandidentify.sensors.OrientationProvider
+import com.galker.pointandidentify.sensors.PressureProvider
 import com.galker.pointandidentify.update.RemoteVersion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +48,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.abs
+import kotlin.math.max
 
 enum class Phase { INITIALIZING, WAITING_LOCATION, READY }
 
@@ -61,6 +67,8 @@ data class UiState(
     val compass: CompassReport = CompassReport(CompassVerdict.CHECKING),
     val fix: ObserverFix? = null,
     val observerEyeAltM: Double? = null,
+    val sensorHeightM: Double? = null,  // height above ground from barometer + GPS, null when unavailable
+    val sensorSigmaM: Double? = null,   // its standard deviation
     val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
     val find: FindState? = null,
     val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
@@ -93,6 +101,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val updater = services.updateManager
 
     val orientationProvider = OrientationProvider(app)
+    val pressureProvider = PressureProvider(app)
+    private val altitudeFusion = BaroGpsFusion()
+    private var lastEyeAlt: Double? = null
     private val locationProvider = LocationProvider(app)
     private val losCalculator = LineOfSightCalculator(TerrainSource { lat, lon -> dem.elevationM(lat, lon) })
 
@@ -211,6 +222,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         compassJob?.cancel()
         locationProvider.stop()
         orientationProvider.stop()
+        pressureProvider.stop()
     }
 
     // ===== Start-up checks =====
@@ -257,8 +269,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Pairs this GPS fix with the current pressure so the filter can anchor the barometer to the GPS altitude. */
+    private fun updateAltitudeFusion(fix: ObserverFix) {
+        val pressure = pressureProvider.pressureHpa.value ?: return
+        val altitude = fix.mslAltitudeM ?: return
+        val sigma = fix.verticalAccuracyM?.toDouble() ?: AppConfig.ALT_GPS_SIGMA_DEFAULT_M
+        altitudeFusion.update(SystemClock.elapsedRealtime(), altitude, sigma, pressure)
+    }
+
+    private fun sensorAltitude(): AltitudeEstimate? {
+        val pressure = pressureProvider.pressureHpa.value ?: return null
+        return altitudeFusion.estimate(pressure)
+    }
+
     private fun onFix(fix: ObserverFix) {
-        _ui.value = _ui.value.copy(fix = fix, phase = if (dataReady) Phase.READY else _ui.value.phase)
+        updateAltitudeFusion(fix)
+        val sensor = sensorAltitude()
+        val ground = dem.elevationM(fix.lat, fix.lon)
+        _ui.value = _ui.value.copy(
+            fix = fix, phase = if (dataReady) Phase.READY else _ui.value.phase,
+            sensorHeightM = if (sensor != null && ground != null) sensor.altM - ground else null,
+            sensorSigmaM = sensor?.sigmaM
+        )
         orientationProvider.updateDeclination(fix.lat, fix.lon, fix.mslAltitudeM ?: 0.0)
         if (!dataReady) return
 
@@ -272,8 +304,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
 
+        // A change of the observer altitude (stairs, lift) also needs a new visibility pass, even when standing still.
+        val eyeNow = observerEyeAltitude(fix)
+        val previousEye = lastEyeAlt
+        val eyeChanged = eyeNow != null && previousEye != null && abs(eyeNow - previousEye) > AppConfig.ALT_RECALC_M
         val needLos = lastLosFix?.let { moved(it, fix) > AppConfig.LOS_RECALC_DISTANCE_M } ?: true
-        if (needLos) recompute(fix)
+        if (needLos || eyeChanged) recompute(fix)
     }
 
     /** Re-evaluates all targets now (called after the user's private points changed). */
@@ -314,15 +350,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 Triple(eyeAlt, evals, found)
             }
+            lastEyeAlt = result.first
             _ui.value = _ui.value.copy(observerEyeAltM = result.first)
             evaluations.value = result.second
             findEval.value = result.third
         }
     }
 
-    /** DEM ground + eye height is preferred: GPS vertical error is typically several times larger. */
-    private fun observerEyeAltitude(fix: ObserverFix): Double? =
-        dem.elevationM(fix.lat, fix.lon)?.let { it + UserSettings.observerHeightM(getApplication<Application>()) } ?: fix.mslAltitudeM
+    /**
+     * Observer eye altitude, m MSL.
+     *   base   = DEM ground + the height above ground chosen in Settings (GPS vertical error is several times larger).
+     *   sensor = barometer + GPS altitude, used (when enabled and certain enough) only to RAISE the base, and only by
+     *            its lower bound (altitude - ALT_LOWER_BOUND_SIGMAS * sigma): on a high floor or a roof the terrain model
+     *            would otherwise place the observer at street level and nearby buildings would hide every target.
+     */
+    private fun observerEyeAltitude(fix: ObserverFix): Double? {
+        val ground = dem.elevationM(fix.lat, fix.lon) ?: return fix.mslAltitudeM
+        val base = ground + UserSettings.observerHeightM(getApplication<Application>())
+        if (!UserSettings.sensorHeightEnabled(getApplication<Application>())) return base
+        val sensor = sensorAltitude() ?: return base
+        if (sensor.sigmaM > AppConfig.ALT_AUTO_MAX_SIGMA_M) return base
+        val bound = sensor.altM - AppConfig.ALT_LOWER_BOUND_SIGMAS * sensor.sigmaM
+        return max(base, bound).coerceAtMost(ground + AppConfig.OBSERVER_HEIGHT_MAX_M)
+    }
 
     private fun moved(a: ObserverFix, b: ObserverFix) = GeoMath.distanceM(a.lat, a.lon, b.lat, b.lon)
 

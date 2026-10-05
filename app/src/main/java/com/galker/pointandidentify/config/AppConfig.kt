@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.11
+// Version 1.12
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -44,6 +44,7 @@ object AppConfig {
     const val EYE_HEIGHT_M = 1.7              // m, default observer eye above ground (the user can change it in Settings)
     const val OBSERVER_HEIGHT_MAX_M = 500.0   // m, upper limit of the user-entered height above ground
     // Target height, footprint exclusion and angular radius are per kind: see domain/TargetKind.kt
+    const val LOS_CLEARANCE_TOLERANCE_M = 5.0 // m, terrain-model noise (SRTM ~ +-6..16 m, includes buildings): a blocker below the line by less than this is ignored
     const val EARTH_RADIUS_M = 6_371_008.8    // m, mean Earth radius
     const val REFRACTION_K = 0.13             // standard atmospheric refraction coefficient
     const val GEOID_UNDULATION_FALLBACK_M = 20.0 // m, ESTIMATE for Israel; used only without DEM and MSL
@@ -59,6 +60,20 @@ object AppConfig {
     const val CANDIDATES_MAX = 5              // targets listed by the identify dialog
     const val VERTICAL_TIEBREAK_WEIGHT = 0.2  // score weight of the vertical angle mismatch (tie-breaker only)
     const val VERTICAL_TIEBREAK_CAP_DEG = 10.0 // deg, vertical mismatch beyond this adds no further penalty
+
+    // ===== Parameters: observer altitude from barometer + GPS (see domain/BaroGpsFusion.kt) =====
+    const val SEA_LEVEL_PRESSURE_HPA = 1013.25 // hPa, reference of the pressure altitude (only changes matter)
+    const val PRESSURE_SMOOTHING_ALPHA = 0.2f  // low-pass factor of the pressure, 0..1
+    const val ALT_BARO_DRIFT_M_PER_SQRT_S = 0.1 // m / sqrt(s), weather drift of the barometer (about 6 m per hour)
+    const val ALT_BARO_NOISE_M = 1.0           // m, barometer noise after smoothing
+    const val ALT_MIN_SIGMA_M = 4.0            // m, the fused altitude is never reported as more certain than this
+    const val ALT_GPS_SIGMA_DEFAULT_M = 20.0   // m, GPS vertical accuracy when the device reports none
+    const val ALT_GPS_SIGMA_MIN_M = 3.0        // m, lower clamp of the reported GPS vertical accuracy
+    const val ALT_GPS_SIGMA_MAX_M = 50.0       // m, upper clamp of the reported GPS vertical accuracy
+    const val ALT_GATE_SIGMAS = 4.0            // GPS altitudes farther than this many sigmas from the prediction are ignored
+    const val ALT_AUTO_MAX_SIGMA_M = 12.0      // m, the sensor altitude is used only when it is at least this certain
+    const val ALT_LOWER_BOUND_SIGMAS = 1.5     // the sensor altitude is used minus this many sigmas (never optimistic)
+    const val ALT_RECALC_M = 3.0               // m, change of the observer altitude that triggers a new visibility pass
 
     // ===== Parameters: phone pose (raised = aiming, flat = reading the screen; hysteresis between the two) =====
     const val FLAT_BELOW_DEG = -55.0          // deg, camera elevation below this = phone flat
@@ -115,6 +130,15 @@ object AppConfig {
             "Invalid crosshair parameters"
         }
         require(PREVIEW_ASPECT in 0.1..1.0) { "PREVIEW_ASPECT must be a portrait ratio" }
+        require(LOS_CLEARANCE_TOLERANCE_M >= 0.0) { "LOS_CLEARANCE_TOLERANCE_M must not be negative" }
+        require(PRESSURE_SMOOTHING_ALPHA in 0.01f..1f) { "PRESSURE_SMOOTHING_ALPHA out of range" }
+        require(ALT_GPS_SIGMA_MIN_M in 0.5..ALT_GPS_SIGMA_MAX_M && ALT_MIN_SIGMA_M > 0 && ALT_BARO_NOISE_M >= 0) {
+            "Invalid altitude fusion parameters"
+        }
+        require(ALT_BARO_DRIFT_M_PER_SQRT_S > 0 && ALT_GATE_SIGMAS > 0 && ALT_AUTO_MAX_SIGMA_M > ALT_MIN_SIGMA_M) {
+            "Invalid altitude fusion limits"
+        }
+        require(ALT_LOWER_BOUND_SIGMAS >= 0.0 && ALT_RECALC_M > 0.0) { "Invalid altitude bound parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }

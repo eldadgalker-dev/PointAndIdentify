@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.1
+// Version 2.2
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -17,7 +17,7 @@ import kotlin.math.max
 //   Terrain    : z_eff(x) = DEM(x) - drop(x), drop = x^2 / (2 * R / (1 - k))  (curvature + refraction)
 //   Sight line : straight segment from h0 (observer eye) to h1_eff (target top minus drop(D))
 //   Target top : ground (DEM or catalogue, per TargetKind) + structure height (catalogue or kind default)
-//   Obstructed : any sample with z_eff(x) > line(x), excluding the kind's footprint before the target
+//   Obstructed : any sample with z_eff(x) > line(x) + LOS_CLEARANCE_TOLERANCE_M (DEM noise), excluding the kind's footprint before the target
 //   Unknown    : no obstruction found, but at least one sample had no terrain data
 //   Elevation  : apparent vertical angle to the target top, atan2(h1_eff - h0, D)
 // =============================================================
@@ -85,7 +85,8 @@ class LineOfSightCalculator(private val terrain: TerrainSource) {
             val line = h0 + f * (h1Eff - h0)
             val clearance = line - zEff
             if (clearance < minClearance) minClearance = clearance
-            if (clearance < 0.0) {
+            // Terrain-model noise tolerance: a blocker within LOS_CLEARANCE_TOLERANCE_M of the line is not a real obstruction.
+            if (clearance < -AppConfig.LOS_CLEARANCE_TOLERANCE_M) {
                 return TargetEvaluation(
                     target, bearing, distance, Visibility.OBSTRUCTED,
                     ground, top, elevation, x, clearance

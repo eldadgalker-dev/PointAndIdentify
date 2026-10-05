@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.location
 
 import android.annotation.SuppressLint
@@ -22,7 +22,8 @@ data class ObserverFix(
     val lat: Double,
     val lon: Double,
     val mslAltitudeM: Double?,     // null when the device provides no usable altitude
-    val horizontalAccuracyM: Float
+    val horizontalAccuracyM: Float,
+    val verticalAccuracyM: Float? = null // GPS vertical accuracy (68 %), null when the device reports none
 )
 
 /** Continuous fused location updates; converts altitude to MSL where possible. */
@@ -62,6 +63,9 @@ class LocationProvider(context: Context) {
             loc.hasAltitude() -> loc.altitude - AppConfig.GEOID_UNDULATION_FALLBACK_M
             else -> null
         }
-        return ObserverFix(loc.latitude, loc.longitude, msl, loc.accuracy)
+        return ObserverFix(
+            loc.latitude, loc.longitude, msl, loc.accuracy,
+            if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters else null
+        )
     }
 }
