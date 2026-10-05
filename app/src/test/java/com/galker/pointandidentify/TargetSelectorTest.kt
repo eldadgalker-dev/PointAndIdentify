@@ -1,13 +1,15 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.CrosshairWindow
+import com.galker.pointandidentify.domain.FindGuidance
+import com.galker.pointandidentify.domain.PhonePose
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
 import com.galker.pointandidentify.domain.Visibility
@@ -89,5 +91,28 @@ class TargetSelectorTest {
     @Test
     fun circularSpreadIsWrapSafe() {
         assertTrue(CompassCheck.circularStdDevDeg(listOf(359.0, 1.0, 0.0, 2.0, 358.0)) < 2.0)
+    }
+
+    @Test
+    fun poseHasHysteresis() {
+        assertTrue(PhonePose.isRaised(false, -10.0))   // clearly raised
+        assertTrue(!PhonePose.isRaised(true, -80.0))   // clearly flat
+        assertTrue(PhonePose.isRaised(true, -45.0))    // in between: keeps the previous mode
+        assertTrue(!PhonePose.isRaised(false, -45.0))
+    }
+
+    @Test
+    fun findArrowPointsTowardThePlace() {
+        // Place 20 deg to the right, level with the camera: arrow points right (angle 0), not inside.
+        val right = FindGuidance.guide(110.0, 0.0, 90.0, 0.0, 5.0)
+        assertEquals(20.0, right.deltaAzimuthDeg, 1e-9)
+        assertEquals(0.0, right.screenAngleRad, 1e-9)
+        assertTrue(!right.inside)
+        // Wrap-around: camera at 350, place at 10 -> 20 deg to the right.
+        assertEquals(20.0, FindGuidance.guide(10.0, 0.0, 350.0, 0.0, 5.0).deltaAzimuthDeg, 1e-9)
+        // Phone flat (camera -90), place on the horizon: arrow points up (pi/2).
+        assertEquals(Math.PI / 2, FindGuidance.guide(90.0, 0.0, 90.0, -90.0, 5.0).screenAngleRad, 1e-9)
+        // Inside the circle.
+        assertTrue(FindGuidance.guide(92.0, 0.0, 90.0, 1.0, 5.0).inside)
     }
 }

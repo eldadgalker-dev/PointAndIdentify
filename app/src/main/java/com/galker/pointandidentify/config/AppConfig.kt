@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.8
+// Version 1.9
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -55,6 +55,14 @@ object AppConfig {
     const val VERTICAL_TIEBREAK_WEIGHT = 0.2  // score weight of the vertical angle mismatch (tie-breaker only)
     const val VERTICAL_TIEBREAK_CAP_DEG = 10.0 // deg, vertical mismatch beyond this adds no further penalty
 
+    // ===== Parameters: phone pose (raised = aiming, flat = reading the screen; hysteresis between the two) =====
+    const val FLAT_BELOW_DEG = -55.0          // deg, camera elevation below this = phone flat
+    const val RAISED_ABOVE_DEG = -35.0        // deg, camera elevation above this = phone raised
+
+    // ===== Parameters: find (free-text place search) =====
+    const val FIND_MAX_RESULTS = 10           // places listed for the user to choose from
+    const val GEOCODER_MAX_RESULTS = 5        // address matches requested from the platform geocoder
+
     // ===== Parameters: zoom =====
     const val ZOOM_MIN_FALLBACK = 1.0         // used until the camera reports its zoom range
     const val EXTRA_ZOOM_MAX = 4.0            // extra calculated (digital) zoom factor applied beyond the camera's own maximum
@@ -101,6 +109,8 @@ object AppConfig {
             "Invalid crosshair parameters"
         }
         require(PREVIEW_ASPECT in 0.1..1.0) { "PREVIEW_ASPECT must be a portrait ratio" }
+        require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
+        require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
         require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {

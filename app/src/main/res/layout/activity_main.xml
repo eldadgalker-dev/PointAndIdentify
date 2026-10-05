@@ -156,4 +156,24 @@
         app:layout_constraintLeft_toRightOf="@id/captureButton"
         app:layout_constraintTop_toTopOf="@id/captureButton" />
 
+    <!-- Find: free-text place search; an arrow at the crosshair then shows where to turn the camera. -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/findButton"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="56dp"
+        android:layout_height="48dp"
+        android:layout_marginLeft="8dp"
+        android:contentDescription="@string/find_title"
+        android:insetLeft="0dp"
+        android:insetTop="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="0dp"
+        android:padding="0dp"
+        android:text="@string/btn_find"
+        android:textSize="14sp"
+        app:cornerRadius="24dp"
+        app:layout_constraintBottom_toBottomOf="@id/captureButton"
+        app:layout_constraintLeft_toRightOf="@id/settingsButton"
+        app:layout_constraintTop_toTopOf="@id/captureButton" />
+
 </androidx.constraintlayout.widget.ConstraintLayout>

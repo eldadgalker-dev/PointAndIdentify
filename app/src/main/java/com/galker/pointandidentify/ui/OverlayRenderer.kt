@@ -1,12 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.9
+// Version 1.10
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
 import android.text.Layout
 import android.text.StaticLayout
@@ -15,8 +16,10 @@ import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.domain.CrosshairWindow
+import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
 
 /**
  * Texts drawn on top of the camera image.
@@ -34,7 +37,10 @@ data class OverlayContent(
     val drawCompass: Boolean = false,        // true for the saved photo (on screen the compass is a separate view)
     val compassAzimuthDeg: Float? = null,    // camera heading for the photo compass
     val compassAzimuthText: String = "",     // text shown under the photo compass
-    val northLabel: String = "N"
+    val northLabel: String = "N",
+    val findArrowRad: Float? = null,         // Find: screen direction to turn the camera (0 = right, pi/2 = up); null = no Find
+    val findInside: Boolean = false,         // Find: the place is already inside the crosshair circle
+    val findLabel: String = ""               // Find: name, range and azimuth, shown under the target title
 )
 
 /**
@@ -73,8 +79,12 @@ class OverlayRenderer {
     private val infoTextRatio = 0.04f       // fixed: the text size never depends on the content, so nothing jumps
     private val footerTextRatio = 0.03f
     private val titleFitMin = 0.6f          // the target name shrinks to fit one line, down to this factor
-    private val fullDataLines = 11          // lines of a full data block (observer 3, angle 1, target 3, geometry 4)
-    private val fullDataGroups = 4          // groups of a full data block; the compass is placed above this height
+    private val fullDataLines = 10          // lines of the data block, always all shown (observer 3, target 3, geometry 4)
+    private val fullDataGroups = 3          // groups of the data block; the compass is placed above this height
+    private val findArrowGapRatio = 0.02f   // gap between the crosshair's outer end and the Find arrow
+    private val findArrowLengthRatio = 0.09f
+    private val findArrowHalfWidthRatio = 0.045f
+    private val findTextRatio = 0.04f
     private val compassRadiusRatio = 0.084f // photo compass
     private val compassGapRatio = 0.01f
     private val azimuthTextRatio = 0.05f
@@ -91,6 +101,11 @@ class OverlayRenderer {
     private val footerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(220, 220, 220) }
     private val bandPaint = Paint().apply { color = Color.BLACK }
     private val dividerPaint = Paint().apply { color = Color.argb(120, 255, 255, 255) }
+    private val findFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0, 229, 255); style = Paint.Style.FILL }
+    private val findStrokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE }
+    private val findRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0, 229, 255); style = Paint.Style.STROKE }
+    private val findTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0, 229, 255); isFakeBoldText = true }
+    private val arrowPath = Path()
 
     /** Draws everything; returns the y of the top of the data block (px), so other views can sit above it. */
     fun draw(canvas: Canvas, width: Int, height: Int, content: OverlayContent, insets: OverlayInsets = OverlayInsets()): Float {
@@ -112,6 +127,8 @@ class OverlayRenderer {
         canvas.drawLine(cx + r * 0.4f, cy, cx + r + arm, cy, crosshairPaint)
         canvas.drawLine(cx, cy - r - arm, cx, cy - r * 0.4f, crosshairPaint)
         canvas.drawLine(cx, cy + r * 0.4f, cx, cy + r + arm, crosshairPaint)
+
+        content.findArrowRad?.let { drawFindMarker(canvas, cx, cy, r + arm, unit, it, content.findInside) }
 
         primaryPaint.color = if (content.visible) Color.YELLOW else Color.rgb(255, 160, 120)
         primaryPaint.isFakeBoldText = true
@@ -138,12 +155,21 @@ class OverlayRenderer {
         val primary = layout(content.primary, primaryPaint, titleWidth, Layout.Alignment.ALIGN_CENTER, direction)
         val primaryTop = insets.topPx + margin
         val secondaryTop = primaryTop + primary.height
-        if (content.primary.isNotEmpty() || content.secondary.isNotEmpty()) {
+        // Find line (third title row): what is being searched, its range and azimuth.
+        findTextPaint.textSize = unit * findTextRatio
+        findTextPaint.setShadowLayer(shadow, shadow / 3, shadow / 3, Color.BLACK)
+        val findLayout = if (content.findLabel.isNotEmpty()) {
+            layout(content.findLabel, findTextPaint, titleWidth, Layout.Alignment.ALIGN_CENTER, direction)
+        } else null
+        val findTop = secondaryTop + secondary.height
+        val titleBottom = findTop + (findLayout?.height ?: 0)
+        if (content.primary.isNotEmpty() || content.secondary.isNotEmpty() || findLayout != null) {
             bandPaint.alpha = titleBackgroundAlpha
-            canvas.drawRect(0f, primaryTop - margin * 0.4f, width.toFloat(), secondaryTop + secondary.height + margin * 0.4f, bandPaint)
+            canvas.drawRect(0f, primaryTop - margin * 0.4f, width.toFloat(), titleBottom + margin * 0.4f, bandPaint)
         }
         drawLayout(canvas, primary, titleLeft, primaryTop)
         drawLayout(canvas, secondary, titleLeft, secondaryTop)
+        findLayout?.let { drawLayout(canvas, it, titleLeft, findTop) }
 
         // Data block at the bottom, stacked upwards: footer last, one row per info group above it.
         // ALIGN_NORMAL aligns to the start edge of the language: right for Hebrew, left for English.
@@ -208,6 +234,42 @@ class OverlayRenderer {
             canvas.drawRect(azimuthPlate, bandPaint)
             canvas.drawText(content.compassAzimuthText, cx, plateTop + gap / 2f - fm.ascent, azimuthPaint)
         }
+    }
+
+    /**
+     * Find marker attached to the outer end of the crosshair: an arrow pointing the way to turn the camera, or
+     * a ring around the circle once the place is inside it. angleRad: 0 = right, pi/2 = up (screen y grows downward).
+     */
+    private fun drawFindMarker(canvas: Canvas, cx: Float, cy: Float, outerR: Float, unit: Float, angleRad: Float, inside: Boolean) {
+        findStrokePaint.strokeWidth = unit * 0.004f
+        if (inside) {
+            findRingPaint.strokeWidth = unit * 0.01f
+            canvas.drawCircle(cx, cy, outerR * 1.1f, findRingPaint)
+            return
+        }
+        val dx = cos(angleRad)
+        val dy = -sin(angleRad)
+        val px = -dy // unit vector perpendicular to the arrow direction
+        val py = dx
+        val baseDist = outerR + unit * findArrowGapRatio
+        val len = unit * findArrowLengthRatio
+        val half = unit * findArrowHalfWidthRatio
+        val shaft = half * 0.35f
+        val bx = cx + dx * baseDist
+        val by = cy + dy * baseDist
+        val mx = bx + dx * len * 0.55f
+        val my = by + dy * len * 0.55f
+        arrowPath.reset()
+        arrowPath.moveTo(bx + dx * len, by + dy * len)       // tip
+        arrowPath.lineTo(mx + px * half, my + py * half)     // head, one wing
+        arrowPath.lineTo(mx + px * shaft, my + py * shaft)
+        arrowPath.lineTo(bx + px * shaft, by + py * shaft)   // shaft
+        arrowPath.lineTo(bx - px * shaft, by - py * shaft)
+        arrowPath.lineTo(mx - px * shaft, my - py * shaft)
+        arrowPath.lineTo(mx - px * half, my - py * half)     // head, other wing
+        arrowPath.close()
+        canvas.drawPath(arrowPath, findFillPaint)
+        canvas.drawPath(arrowPath, findStrokePaint)
     }
 
     /** Crosshair scale for a zoom ratio: grows with zoom, never below 1, capped. */

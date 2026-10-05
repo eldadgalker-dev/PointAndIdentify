@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.9
+// Version 1.10
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -19,6 +19,9 @@ import android.content.Context
 import android.content.DialogInterface
 import android.os.Process
 import android.text.InputType
+import android.text.method.LinkMovementMethod
+import android.text.util.Linkify
+import android.view.inputmethod.EditorInfo
 import android.util.Log
 import android.view.View
 import android.view.GestureDetector
@@ -139,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         binding.settingsButton.icon = GearDrawable()
         binding.settingsButton.setOnClickListener { showSettings() }
         binding.helpButton.setOnClickListener { showHelp() }
+        binding.findButton.setOnClickListener { showFind() }
         binding.compassView.northLabel = getString(R.string.compass_north)
 
         // The data text sits just above the bottom buttons: follow their measured position.
@@ -386,15 +390,26 @@ class MainActivity : AppCompatActivity() {
         val textColor = com.google.android.material.color.MaterialColors.getColor(
             binding.root, com.google.android.material.R.attr.colorOnSurface
         )
-        fun body(text: CharSequence, selectable: Boolean = true) = TextView(this).apply {
+        // ltr = true: English text in either UI language (license, URL): left-to-right and aligned to the left.
+        fun body(text: CharSequence, selectable: Boolean = true, ltr: Boolean = false) = TextView(this).apply {
             this.text = text
             setTextColor(textColor)
             textSize = 15f
-            textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            if (ltr) {
+                textDirection = View.TEXT_DIRECTION_LTR
+                textAlignment = View.TEXT_ALIGNMENT_TEXT_START
+            } else {
+                textAlignment = View.TEXT_ALIGNMENT_VIEW_START
+            }
             setTextIsSelectable(selectable)
             setPadding(0, (8 * density).toInt(), 0, (8 * density).toInt())
         }
-        val link = body(apkUrl).apply { textDirection = View.TEXT_DIRECTION_LTR }
+        // The download address is a blue, tappable link (opens the browser, which downloads the APK).
+        val link = body(apkUrl, selectable = false, ltr = true).apply {
+            Linkify.addLinks(this, Linkify.WEB_URLS)
+            setLinkTextColor(Color.rgb(30, 136, 229))
+            movementMethod = LinkMovementMethod.getInstance()
+        }
         val copy = MaterialButton(this).apply {
             text = getString(R.string.btn_copy_link)
             setOnClickListener {
@@ -408,7 +423,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(pad, pad / 2, pad, pad / 2)
             addView(body(getString(R.string.help_text)))
             addView(body(getString(R.string.help_glossary)))
-            addView(body(getString(R.string.help_license)))
+            addView(body(getString(R.string.help_license), ltr = true))
             addView(body(getString(R.string.help_install)))
             addView(link)
             addView(copy)
@@ -667,6 +682,74 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
+    // ===== Find =====
+
+    /** Free-text search of a place ("Home", a settlement, an address or "lat, lon"); the crosshair then shows an arrow toward it. */
+    private fun showFind() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            setHint(R.string.find_hint)
+            inputType = InputType.TYPE_CLASS_TEXT
+            setSingleLine()
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            addView(input)
+        }
+        val builder = AlertDialog.Builder(this)
+            .setTitle(R.string.find_title)
+            .setView(box)
+            .setPositiveButton(R.string.find_ok, null) // handler below: the dialog closes only for a non-empty query
+            .setNegativeButton(R.string.dialog_close, null)
+        if (vm.ui.value.find != null) {
+            builder.setNeutralButton(R.string.find_stop) { _, _ -> vm.setFind(null) }
+        }
+        val dialog = builder.create()
+        fun submit() {
+            val query = input.text.toString().trim()
+            if (query.isEmpty()) return
+            dialog.dismiss()
+            runFind(query)
+        }
+        input.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) { submit(); true } else false
+        }
+        dialog.setOnShowListener {
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener { submit() }
+            input.requestFocus()
+        }
+        dialog.show()
+    }
+
+    private fun runFind(query: String) {
+        lifecycleScope.launch {
+            val places = try {
+                vm.searchPlaces(query)
+            } catch (e: Exception) {
+                Log.w(TAG, "Find failed", e)
+                emptyList()
+            }
+            when (places.size) {
+                0 -> toast(getString(R.string.find_none))
+                1 -> startFind(places[0])
+                else -> AlertDialog.Builder(this@MainActivity)
+                    .setTitle(R.string.find_pick_title)
+                    .setItems(places.map { getString(R.string.points_item, it.name, it.latitude, it.longitude) }.toTypedArray()) { _, i ->
+                        startFind(places[i])
+                    }
+                    .setNegativeButton(R.string.dialog_close, null)
+                    .show()
+            }
+        }
+    }
+
+    private fun startFind(place: com.galker.pointandidentify.data.db.TargetEntity) {
+        vm.setFind(place)
+        toast(getString(R.string.find_started, place.name))
+    }
+
     // ===== Identify =====
 
     /** Lists the targets inside the crosshair window (ranked), so the pointed target can be confirmed. */
@@ -703,7 +786,16 @@ class MainActivity : AppCompatActivity() {
             else -> targetContent(state, az)
         }
         val rtl = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
-        return base.copy(infoLines = infoLines(state), zoomRatio = state.zoomRatio, rtl = rtl)
+        val find = state.find
+        return base.copy(
+            infoLines = infoLines(state), zoomRatio = state.zoomRatio, rtl = rtl,
+            findArrowRad = find?.guide?.screenAngleRad?.toFloat(),
+            findInside = find?.guide?.inside ?: false,
+            findLabel = find?.let {
+                getString(R.string.find_label, it.name, it.distanceM / 1000.0, it.bearingDeg.roundToInt().mod(360)) +
+                    if (it.guide.inside) " " + getString(R.string.find_in_crosshair) else ""
+            } ?: ""
+        )
     }
 
     /** The live view shows visible targets only (the selector guarantees it); hidden ones are listed by a tap on the crosshair. */
@@ -718,45 +810,51 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * Data block shown on screen and burned into the photo, one group per topic, one fact per line:
-     *   observer position / accuracy, height and camera vertical angle (one line),
+     * Data block shown on screen and burned into the photo, one group per topic, one fact per line.
+     * ALL lines are always present (a "-" stands for an unknown value), so the block never changes size:
+     *   observer position / accuracy / height with the camera vertical angle,
      *   target kind / height / position, and target geometry (range, azimuth, angle, clearance).
+     * The target position is shown only while the phone is raised; held flat, only the current position is shown.
      * The camera azimuth is shown under the compass and the zoom next to the zoom bar, not here.
      */
     private fun infoLines(state: UiState): List<String> {
-        val groups = ArrayList<String>(4)
-        state.fix?.let { fix ->
-            groups.add(
-                listOf(
-                    getString(R.string.info_observer_pos, fix.lat, fix.lon),
-                    getString(R.string.info_observer_acc, fix.horizontalAccuracyM.roundToInt()),
-                    state.cameraElevationDeg
-                        ?.let { getString(R.string.info_height_angle, altText(state.observerEyeAltM), it) }
-                        ?: getString(R.string.info_height, altText(state.observerEyeAltM))
-                ).joinToString("\n")
+        val none = getString(R.string.info_none)
+        val fix = state.fix
+        val t = state.target
+        val observer = listOf(
+            getString(R.string.info_observer_pos, fix?.let { fmt("%.5f, %.5f", it.lat, it.lon) } ?: none),
+            getString(
+                R.string.info_observer_acc,
+                fix?.let { "±" + getString(R.string.info_meters, it.horizontalAccuracyM.roundToInt()) } ?: none
+            ),
+            getString(
+                R.string.info_height_angle, altText(state.observerEyeAltM),
+                state.cameraElevationDeg?.let { fmt("%+.1f°", it) } ?: none
             )
-        }
-        state.target?.let { t ->
-            groups.add(
-                listOf(
-                    getString(R.string.info_target_kind, getString(kindLabel(t.target.targetKind))),
-                    getString(R.string.info_target_height, altText(t.topAltM)),
-                    getString(R.string.info_target_pos, t.target.latitude, t.target.longitude)
-                ).joinToString("\n")
+        )
+        val position = if (state.raised) t?.let { fmt("%.5f, %.5f", it.target.latitude, it.target.longitude) } else null
+        val target = listOf(
+            getString(R.string.info_target_kind, t?.let { getString(kindLabel(it.target.targetKind)) } ?: none),
+            getString(R.string.info_target_height, t?.let { altText(it.topAltM) } ?: none),
+            getString(R.string.info_target_pos, position ?: none)
+        )
+        val geometry = listOf(
+            getString(
+                R.string.info_geometry_range,
+                t?.let { fmt("%.2f", it.distanceM / 1000.0) + " " + getString(R.string.unit_km) } ?: none
+            ),
+            getString(R.string.info_geometry_bearing, t?.let { fmt("%.1f°", it.bearingDeg) } ?: none),
+            getString(R.string.info_geometry_angle, t?.elevationAngleDeg?.let { fmt("%+.2f°", it) } ?: none),
+            getString(
+                R.string.info_clearance,
+                t?.minClearanceM?.let { getString(R.string.info_meters, it.roundToInt()) } ?: none
             )
-            val clearance = t.minClearanceM?.let { getString(R.string.info_meters, it.roundToInt()) }
-                ?: getString(R.string.info_none)
-            groups.add(
-                listOf(
-                    getString(R.string.info_geometry_range, t.distanceM / 1000.0),
-                    getString(R.string.info_geometry_bearing, t.bearingDeg),
-                    getString(R.string.info_geometry_angle, t.elevationAngleDeg ?: 0.0),
-                    getString(R.string.info_clearance, clearance)
-                ).joinToString("\n")
-            )
-        }
-        return groups
+        )
+        return listOf(observer, target, geometry).map { it.joinToString("\n") }
     }
+
+    /** Fixed-locale number formatting (Western digits in both UI languages). */
+    private fun fmt(pattern: String, vararg args: Any): String = String.format(java.util.Locale.US, pattern, *args)
 
     private fun altText(altM: Double?): String =
         altM?.let { getString(R.string.info_meters, it.roundToInt()) } ?: getString(R.string.info_none)
@@ -784,6 +882,7 @@ class MainActivity : AppCompatActivity() {
         // The saved photo shows the compass too (on screen it is a separate view).
         return live.copy(
             primary = primary, footer = footer,
+            findArrowRad = null, findInside = false, findLabel = "", // the Find guide is a live aid, not part of the photo
             drawCompass = true,
             compassAzimuthDeg = state.azimuthDeg?.toFloat(),
             compassAzimuthText = state.azimuthDeg?.let { getString(R.string.azimuth_value, it.roundToInt().mod(360)) } ?: "",

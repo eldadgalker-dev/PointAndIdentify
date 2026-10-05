@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.data.db
 
 import androidx.room.Dao
@@ -21,6 +21,10 @@ interface TargetDao {
             "AND longitude BETWEEN :minLon AND :maxLon"
     )
     suspend fun inBox(minLat: Double, maxLat: Double, minLon: Double, maxLon: Double): List<TargetEntity>
+
+    /** Free-text search by name (substring, case-insensitive for ASCII), used by the Find feature. */
+    @Query("SELECT * FROM targets WHERE name LIKE '%' || :query || '%' ORDER BY name LIMIT :limit")
+    suspend fun searchByName(query: String, limit: Int): List<TargetEntity>
 
     @Insert
     suspend fun insertAll(items: List<TargetEntity>)

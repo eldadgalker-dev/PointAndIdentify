@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.9
+// Version 1.10
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -9,18 +9,25 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.galker.pointandidentify.PointApp
 import com.galker.pointandidentify.config.AppConfig
+import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.data.dem.DemTileRepository
 import com.galker.pointandidentify.domain.Candidate
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassReport
 import com.galker.pointandidentify.domain.CompassVerdict
+import com.galker.pointandidentify.domain.CrosshairWindow
+import com.galker.pointandidentify.domain.FindGuidance
+import com.galker.pointandidentify.domain.FindGuide
 import com.galker.pointandidentify.domain.LineOfSightCalculator
+import com.galker.pointandidentify.domain.PhonePose
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
 import com.galker.pointandidentify.domain.TerrainSource
+import com.galker.pointandidentify.domain.Visibility
 import com.galker.pointandidentify.geo.GeoMath
 import com.galker.pointandidentify.location.LocationProvider
 import com.galker.pointandidentify.location.ObserverFix
+import com.galker.pointandidentify.sensors.Orientation
 import com.galker.pointandidentify.sensors.OrientationProvider
 import com.galker.pointandidentify.update.RemoteVersion
 import kotlinx.coroutines.CancellationException
@@ -40,6 +47,9 @@ import java.io.File
 
 enum class Phase { INITIALIZING, WAITING_LOCATION, READY }
 
+/** The place chosen with Find and where to turn the camera to reach it. */
+data class FindState(val name: String, val distanceM: Double, val bearingDeg: Double, val guide: FindGuide)
+
 data class UiState(
     val phase: Phase = Phase.INITIALIZING,
     val azimuthDeg: Double? = null,
@@ -51,6 +61,8 @@ data class UiState(
     val compass: CompassReport = CompassReport(CompassVerdict.CHECKING),
     val fix: ObserverFix? = null,
     val observerEyeAltM: Double? = null,
+    val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
+    val find: FindState? = null,
     val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
     val targetsCount: Int = 0,
     val offline: Boolean = false
@@ -85,6 +97,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val losCalculator = LineOfSightCalculator(TerrainSource { lat, lon -> dem.elevationM(lat, lon) })
 
     private val evaluations = MutableStateFlow<List<TargetEvaluation>>(emptyList())
+
+    // Find: the chosen place and its latest evaluation from the observer (bearing, range, apparent vertical angle).
+    private val findTarget = MutableStateFlow<TargetEntity?>(null)
+    private val findEval = MutableStateFlow<TargetEvaluation?>(null)
+    private var raised = true
+
+    /** One sensor/data snapshot for the throttled UI update. */
+    private class Tick(val o: Orientation, val evals: List<TargetEvaluation>, val zoom: Double, val find: TargetEvaluation?)
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -137,13 +157,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         viewModelScope.launch {
-            combine(orientationProvider.orientation.filterNotNull(), evaluations, zoom) { o, evals, z -> Triple(o, evals, z) }
+            combine(orientationProvider.orientation.filterNotNull(), evaluations, zoom, findEval) { o, evals, z, fe ->
+                Tick(o, evals, z, fe)
+            }
                 .sample(AppConfig.UI_UPDATE_INTERVAL_MS)
-                .collect { (o, evals, z) ->
+                .collect { tick ->
+                    val o = tick.o
+                    val evals = tick.evals
+                    val z = tick.zoom
                     // Zoom narrows the field of view, and with it the crosshair window.
                     val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
                     val selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg)
+                    raised = PhonePose.isRaised(raised, o.cameraElevationDeg)
+                    val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
+                    val find = tick.find?.let { e ->
+                        FindState(
+                            e.target.name, e.distanceM, e.bearingDeg,
+                            FindGuidance.guide(e.bearingDeg, e.elevationAngleDeg, o.trueAzimuthDeg, o.cameraElevationDeg, circleDeg)
+                        )
+                    }
                     _ui.value = _ui.value.copy(
+                        raised = raised,
+                        find = find,
                         azimuthDeg = o.trueAzimuthDeg,
                         compassCalibrated = o.calibrated,
                         cameraElevationDeg = o.cameraElevationDeg,
@@ -157,6 +192,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startLocation() = locationProvider.start()
     fun stopLocation() = locationProvider.stop()
+
+    /** Free-text place search (coordinates, private points, target names, geocoder). */
+    suspend fun searchPlaces(query: String): List<TargetEntity> = targets.search(query)
+
+    /** Starts (or, with null, stops) guiding the camera to a place. */
+    fun setFind(place: TargetEntity?) {
+        findTarget.value = place
+        if (place == null) findEval.value = null else forceRecompute()
+    }
 
     fun onZoomChanged(ratio: Double) {
         if (ratio > 0.0) zoom.value = ratio
@@ -256,10 +300,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, it)
                     }
                 }
-                eyeAlt to evals
+                // Find works at any range: without an eye altitude only bearing and range are known.
+                val found = findTarget.value?.let { t ->
+                    if (eyeAlt != null) {
+                        losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, t)
+                    } else {
+                        TargetEvaluation(
+                            t, GeoMath.bearingDeg(fix.lat, fix.lon, t.latitude, t.longitude),
+                            GeoMath.distanceM(fix.lat, fix.lon, t.latitude, t.longitude), Visibility.UNKNOWN
+                        )
+                    }
+                }
+                Triple(eyeAlt, evals, found)
             }
             _ui.value = _ui.value.copy(observerEyeAltM = result.first)
             evaluations.value = result.second
+            findEval.value = result.third
         }
     }
 
