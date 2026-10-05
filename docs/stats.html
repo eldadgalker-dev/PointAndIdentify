@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<!--
+  Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
+  This software is released under the BSD 3-Clause License.
+  See the LICENSE.txt file in the project root for full license information.
+-->
+<!-- Version 1.0 -->
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PointAndIdentify – סטטיסטיקה</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Assistant:wght@400;600;700&family=Frank+Ruhl+Libre:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  /* ===== Parameters: design tokens (same palette as index.html) ===== */
+  :root {
+    --paper: #F3F5F2; --ink: #1E292D; --muted: #55636A; --contour: #9A7B4F;
+    --water: #2D6A8A; --visible: #2F7A36; --hidden: #C0392B; --rule: #CBD3CE; --surface: #FFFFFF;
+    --measure: 66ch;
+    --font-body: "Assistant", "Segoe UI", Arial, sans-serif;
+    --font-head: "Frank Ruhl Libre", "David", "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #141B1E; --ink: #E4EAE6; --muted: #9AA8A3; --contour: #C29F6E;
+      --water: #6FA9C8; --visible: #6CC274; --hidden: #F07462; --rule: #2C383C; --surface: #1B2427;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141B1E; --ink: #E4EAE6; --muted: #9AA8A3; --contour: #C29F6E;
+    --water: #6FA9C8; --visible: #6CC274; --hidden: #F07462; --rule: #2C383C; --surface: #1B2427;
+  }
+  :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  *, *::before, *::after { box-sizing: inherit; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body);
+         font-size: 1.0625rem; line-height: 1.6; text-align: right; }
+  main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+  h1, h2 { font-family: var(--font-head); line-height: 1.2; margin: 0; }
+  h1 { font-size: 2rem; margin-bottom: .5rem; }
+  h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--rule); }
+  p { margin: 0 0 1rem; }
+  a { color: var(--water); }
+  a:focus-visible { outline: 3px solid var(--water); outline-offset: 3px; }
+  .small { font-size: .92rem; color: var(--muted); }
+  code { font-size: .95em; background: var(--surface); border: 1px solid var(--rule); padding: 0 .3em; border-radius: 3px; }
+
+  /* ===== Totals ===== */
+  .totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: .75rem; margin: 1.5rem 0; }
+  .total { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: .75rem 1rem; }
+  .total .num { display: block; font-family: var(--font-head); font-size: 2rem; font-weight: 700; color: var(--water); }
+  .total .lbl { color: var(--muted); font-size: .95rem; }
+
+  /* ===== Table ===== */
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--rule); }
+  th, td { padding: .5rem .75rem; text-align: right; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  th { font-weight: 600; background: var(--paper); }
+  td.num, th.num { text-align: left; font-variant-numeric: tabular-nums; direction: ltr; }
+  tr.latest td:first-child { font-weight: 700; color: var(--visible); }
+  #status { min-height: 1.6em; }
+  #status.error { color: var(--hidden); }
+</style>
+</head>
+<body>
+<main>
+  <p class="small"><a href="./index.html">← חזרה לעמוד ההתקנה</a></p>
+  <h1>סטטיסטיקה</h1>
+  <p class="small">הנתונים נשלפים בזמן אמת מ-GitHub Releases. אין איסוף נתונים על משתמשים או מכשירים.</p>
+  <p id="status" role="status">טוען נתונים…</p>
+
+  <div class="totals" id="totals" hidden>
+    <div class="total"><span class="num" id="totalDownloads">0</span><span class="lbl">הורדות קובץ ההתקנה (APK)</span></div>
+    <div class="total"><span class="num" id="totalChecks">0</span><span class="lbl">בדיקות עדכון</span></div>
+    <div class="total"><span class="num" id="totalReleases">0</span><span class="lbl">גרסאות שפורסמו</span></div>
+  </div>
+
+  <h2>לפי גרסה</h2>
+  <div class="scroll">
+    <table id="table" hidden>
+      <thead>
+        <tr>
+          <th scope="col">גרסה</th>
+          <th scope="col">תאריך פרסום</th>
+          <th scope="col" class="num">הורדות</th>
+          <th scope="col" class="num">בדיקות עדכון</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <h2>איך לקרוא את המספרים</h2>
+  <ul>
+    <li><strong>הורדות</strong>: כל הורדה של הקובץ <code>PointAndIdentify.apk</code>, בין אם מהדפדפן ובין אם כעדכון מתוך האפליקציה. הורדה נספרת בגרסה שהייתה האחרונה ברגע ההורדה.</li>
+    <li><strong>בדיקות עדכון</strong>: כל בדיקה מורידה את הקובץ <code>version.json</code> (האפליקציה בודקת בכל הפעלה ובלחיצה על "בדוק עדכון"). בדיקה נספרת בגרסה שהייתה האחרונה ברגע הבדיקה, ולא בגרסה המותקנת בטלפון.</li>
+    <li>המספרים הם <strong>ספירת הורדות</strong>, ולא ספירת משתמשים: אין זיהוי של מכשיר או אדם, ולכן אי אפשר לדעת כמה משתמשים ייחודיים התקינו, או כמה מהם מעודכנים לגרסה האחרונה.</li>
+    <li>ספירה מתחילה מהרגע שבו כל גרסה פורסמה. הורדות של כלי אוטומטיים נספרות גם הן.</li>
+  </ul>
+</main>
+
+<!-- UI strings live in markup so that script code stays English-only. -->
+<template id="strings">
+  <span data-key="loadFailed">טעינת הנתונים מ-GitHub נכשלה (ייתכן שחרגת ממכסת הבקשות לשעה). נסה שוב מאוחר יותר.</span>
+  <span data-key="empty">עדיין לא פורסמו גרסאות.</span>
+  <span data-key="updated">עודכן: </span>
+  <span data-key="latest"> (אחרונה)</span>
+</template>
+
+<script>
+  // ===== Parameters =====
+  const OWNER = "eldadgalker-dev";
+  const REPO = "PointAndIdentify";
+  const APK_ASSET = "PointAndIdentify.apk";
+  const VERSION_ASSET = "version.json";
+  const PER_PAGE = 100; // GitHub maximum per page
+
+  const text = (key) => document.querySelector('#strings [data-key="' + key + '"]').textContent;
+  const fmt = (n) => n.toLocaleString("en-US");
+
+  function countOf(release, name) {
+    const asset = release.assets.find((a) => a.name === name);
+    return asset ? asset.download_count : 0;
+  }
+
+  function render(releases) {
+    const status = document.getElementById("status");
+    if (!releases.length) { status.textContent = text("empty"); return; }
+    const rows = document.getElementById("rows");
+    let downloads = 0;
+    let checks = 0;
+    releases.forEach((rel, i) => {
+      const d = countOf(rel, APK_ASSET);
+      const c = countOf(rel, VERSION_ASSET);
+      downloads += d;
+      checks += c;
+      const tr = document.createElement("tr");
+      if (i === 0) tr.className = "latest";
+      const cells = [
+        rel.name || rel.tag_name,
+        new Date(rel.published_at).toLocaleDateString("he-IL"),
+        fmt(d),
+        fmt(c)
+      ];
+      cells.forEach((value, k) => {
+        const td = document.createElement("td");
+        if (k >= 2) td.className = "num";
+        td.textContent = value;
+        if (k === 0 && i === 0) td.textContent += text("latest");
+        tr.appendChild(td);
+      });
+      rows.appendChild(tr);
+    });
+    document.getElementById("totalDownloads").textContent = fmt(downloads);
+    document.getElementById("totalChecks").textContent = fmt(checks);
+    document.getElementById("totalReleases").textContent = fmt(releases.length);
+    document.getElementById("totals").hidden = false;
+    document.getElementById("table").hidden = false;
+    status.textContent = text("updated") + new Date().toLocaleString("he-IL");
+  }
+
+  async function load() {
+    const status = document.getElementById("status");
+    try {
+      const url = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/releases?per_page=" + PER_PAGE;
+      const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const all = await response.json();
+      render(all.filter((r) => !r.draft && !r.prerelease)); // newest first, as returned by GitHub
+    } catch (e) {
+      status.textContent = text("loadFailed");
+      status.className = "error";
+    }
+  }
+  load();
+</script>
+</body>
+</html>
