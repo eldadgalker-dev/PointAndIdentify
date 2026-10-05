@@ -4,7 +4,7 @@
   This software is released under the BSD 3-Clause License.
   See the LICENSE.txt file in the project root for full license information.
 -->
-<!-- Version 1.0 -->
+<!-- Version 1.1 -->
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -117,7 +117,9 @@
   const VERSION_ASSET = "version.json";
   const PER_PAGE = 100; // GitHub maximum per page
 
-  const text = (key) => document.querySelector('#strings [data-key="' + key + '"]').textContent;
+  // Template content lives in a separate fragment: document.querySelector cannot see it.
+  const strings = document.getElementById("strings").content;
+  const text = (key) => strings.querySelector('[data-key="' + key + '"]').textContent;
   const fmt = (n) => n.toLocaleString("en-US");
 
   function countOf(release, name) {
