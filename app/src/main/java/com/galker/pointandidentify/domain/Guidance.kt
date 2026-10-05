@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -20,6 +20,17 @@ object PhonePose {
         cameraElevationDeg > AppConfig.RAISED_ABOVE_DEG -> true
         cameraElevationDeg < AppConfig.FLAT_BELOW_DEG -> false
         else -> previouslyRaised
+    }
+}
+
+/** Camera pointing (almost) straight down: the phone lies on a table or is held flat. */
+object LookingDown {
+
+    /** Hysteresis between CITY_MODE_BELOW_DEG (enter) and CITY_MODE_EXIT_DEG (leave). */
+    fun isLookingDown(previously: Boolean, cameraElevationDeg: Double): Boolean = when {
+        cameraElevationDeg < AppConfig.CITY_MODE_BELOW_DEG -> true
+        cameraElevationDeg > AppConfig.CITY_MODE_EXIT_DEG -> false
+        else -> previously
     }
 }
 

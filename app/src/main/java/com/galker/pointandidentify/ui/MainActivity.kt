@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.14
+// Version 1.15
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -921,6 +921,10 @@ class MainActivity : AppCompatActivity() {
     private fun targetContent(state: UiState, az: Int?): OverlayContent {
         val azText = az?.let { getString(R.string.status_azimuth, it) } ?: ""
         // No visible target: say so, but point out hidden ones inside the crosshair (listed by a tap on it).
+        // Camera pointing down: only the current city, whatever the azimuth.
+        if (state.cityMode && state.target != null) {
+            return OverlayContent(state.target.target.name, getString(R.string.city_current), visible = true)
+        }
         val t = state.target ?: return OverlayContent(
             if (state.candidates.isEmpty()) getString(R.string.status_no_target)
             else getString(R.string.status_hidden_in_crosshair, state.candidates.size),
@@ -1000,7 +1004,7 @@ class MainActivity : AppCompatActivity() {
     /** Photo overlay: same data block, plus a footer with timestamp and app version. */
     private fun buildPhotoContent(state: UiState): OverlayContent {
         val live = buildLiveContent(state)
-        val primary = if (state.target != null) getString(R.string.photo_target_prefix, live.primary) else live.primary
+        val primary = if (state.target != null && !state.cityMode) getString(R.string.photo_target_prefix, live.primary) else live.primary
         val time = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US).format(java.util.Date())
         val footer = getString(R.string.photo_footer, time, updater().installedVersionName)
         // The saved photo shows the compass too (on screen it is a separate view).

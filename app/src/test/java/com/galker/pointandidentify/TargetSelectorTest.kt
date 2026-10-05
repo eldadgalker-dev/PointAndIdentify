@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.data.db.TargetEntity
@@ -9,6 +9,7 @@ import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.CrosshairWindow
 import com.galker.pointandidentify.domain.FindGuidance
+import com.galker.pointandidentify.domain.LookingDown
 import com.galker.pointandidentify.domain.PhonePose
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
@@ -22,11 +23,11 @@ class TargetSelectorTest {
 
     private fun eval(
         name: String, bearing: Double, visibility: Visibility = Visibility.VISIBLE,
-        topAngle: Double? = null, groundAngle: Double? = null
+        topAngle: Double? = null, groundAngle: Double? = null, distanceM: Double = 3_000.0
     ) = TargetEvaluation(
         target = TargetEntity(name = name, kind = "tower", latitude = 32.0, longitude = 35.0, altitudeM = 0.0, heightM = null),
         bearingDeg = bearing,
-        distanceM = 3_000.0,
+        distanceM = distanceM,
         visibility = visibility,
         elevationAngleDeg = topAngle,
         groundAngleDeg = groundAngle
@@ -77,6 +78,33 @@ class TargetSelectorTest {
         val e = listOf(eval("Tall", 90.0, topAngle = 1.0, groundAngle = -4.0))
         assertEquals("Tall", TargetSelector.select(e, 90.0, 50.0, 1.0, -3.0).best!!.target.name)
         assertNull(TargetSelector.select(e, 90.0, 50.0, 1.0, 12.0).best)
+    }
+
+    @Test
+    fun loweringTheCameraNeverSelectsAFartherTarget() {
+        // From a high floor, ground targets look steeper the nearer they are: 1.2 km -> -6 deg, 4 km -> -1.8 deg, 11 km -> -0.5 deg.
+        val targets = listOf(
+            eval("near", 90.0, topAngle = -6.0, groundAngle = -6.0, distanceM = 1_200.0),
+            eval("mid", 90.0, topAngle = -1.8, groundAngle = -1.8, distanceM = 4_000.0),
+            eval("far", 90.0, topAngle = -0.5, groundAngle = -0.5, distanceM = 11_000.0)
+        )
+        var previousDistance = Double.MAX_VALUE
+        for (camera in listOf(0.0, -0.5, -1.8, -3.5, -6.0)) {
+            val best = TargetSelector.select(targets, 90.0, 50.0, 1.0, camera).best
+            val distance = best?.distanceM ?: continue
+            assertTrue("lowering must not pick a farther target", distance <= previousDistance)
+            previousDistance = distance
+        }
+        assertEquals("near", TargetSelector.select(targets, 90.0, 50.0, 1.0, -6.0).best!!.target.name)
+        assertEquals("far", TargetSelector.select(targets, 90.0, 50.0, 1.0, -0.5).best!!.target.name)
+    }
+
+    @Test
+    fun lookingDownHasHysteresis() {
+        assertTrue(LookingDown.isLookingDown(false, -88.0))
+        assertTrue(!LookingDown.isLookingDown(true, -30.0))
+        assertTrue(LookingDown.isLookingDown(true, -70.0))   // in between: keeps the previous mode
+        assertTrue(!LookingDown.isLookingDown(false, -70.0))
     }
 
     @Test

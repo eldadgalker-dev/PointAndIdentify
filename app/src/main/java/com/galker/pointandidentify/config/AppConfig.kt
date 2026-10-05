@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.14
+// Version 1.15
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -82,6 +82,12 @@ object AppConfig {
     const val FLAT_BELOW_DEG = -55.0          // deg, camera elevation below this = phone flat
     const val RAISED_ABOVE_DEG = -35.0        // deg, camera elevation above this = phone raised
 
+    // ===== Parameters: current-city mode (camera pointing down, e.g. the phone lies on a table) =====
+    const val CITY_MODE_BELOW_DEG = -75.0     // deg, camera elevation below this = show only the current city
+    const val CITY_MODE_EXIT_DEG = -65.0      // deg, camera elevation above this = leave city mode (hysteresis)
+    const val CITY_SEARCH_RADIUS_M = 15_000.0 // m, the current city is the nearest settlement within this range
+    const val CITY_SWITCH_MARGIN_M = 500.0    // m, another settlement replaces the current one only when this much nearer
+
     // ===== Parameters: find (free-text place search) =====
     const val FIND_MAX_RESULTS = 10           // places listed for the user to choose from
     const val GEOCODER_MAX_RESULTS = 5        // address matches requested from the platform geocoder
@@ -142,6 +148,8 @@ object AppConfig {
             "Invalid altitude fusion limits"
         }
         require(ALT_LOWER_BOUND_SIGMAS >= 0.0 && ALT_RECALC_M > 0.0) { "Invalid altitude bound parameters" }
+        require(CITY_MODE_BELOW_DEG < CITY_MODE_EXIT_DEG) { "CITY_MODE_BELOW_DEG must be below CITY_MODE_EXIT_DEG (hysteresis)" }
+        require(CITY_SEARCH_RADIUS_M > 0 && CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }

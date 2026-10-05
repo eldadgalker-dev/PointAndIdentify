@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.14
+// Version 1.15
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -21,8 +21,11 @@ import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.CrosshairWindow
 import com.galker.pointandidentify.domain.FindGuidance
 import com.galker.pointandidentify.domain.FindGuide
+import com.galker.pointandidentify.domain.LookingDown
+import com.galker.pointandidentify.domain.TargetKind
 import com.galker.pointandidentify.domain.LineOfSightCalculator
 import com.galker.pointandidentify.domain.PhonePose
+import com.galker.pointandidentify.domain.Selection
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
 import com.galker.pointandidentify.domain.TerrainSource
@@ -70,6 +73,7 @@ data class UiState(
     val observerEyeAltM: Double? = null,
     val sensorHeightM: Double? = null,  // height above ground from barometer + GPS, null when unavailable
     val sensorSigmaM: Double? = null,   // its standard deviation
+    val cityMode: Boolean = false, // camera pointing down: the target is the current city, whatever the azimuth
     val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
     val find: FindState? = null,
     val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
@@ -115,8 +119,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val findEval = MutableStateFlow<TargetEvaluation?>(null)
     private var raised = true
 
+    // Current city: the nearest settlement (with hysteresis, so GPS jitter does not make it jump); shown when the camera points down.
+    private val cityEval = MutableStateFlow<TargetEvaluation?>(null)
+    @Volatile
+    private var currentCity: TargetEntity? = null
+    private var lookingDown = false
+
     /** One sensor/data snapshot for the throttled UI update. */
-    private class Tick(val o: Orientation, val evals: List<TargetEvaluation>, val zoom: Double, val find: TargetEvaluation?)
+    private class Tick(
+        val o: Orientation, val evals: List<TargetEvaluation>, val zoom: Double,
+        val find: TargetEvaluation?, val city: TargetEvaluation?
+    )
 
     private val _ui = MutableStateFlow(UiState())
     val ui: StateFlow<UiState> = _ui
@@ -171,8 +184,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         viewModelScope.launch {
-            combine(orientationProvider.orientation.filterNotNull(), evaluations, zoom, findEval) { o, evals, z, fe ->
-                Tick(o, evals, z, fe)
+            combine(orientationProvider.orientation.filterNotNull(), evaluations, zoom, findEval, cityEval) { o, evals, z, fe, ce ->
+                Tick(o, evals, z, fe, ce)
             }
                 .sample(AppConfig.UI_UPDATE_INTERVAL_MS)
                 .collect { tick ->
@@ -181,8 +194,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val z = tick.zoom
                     // Zoom narrows the field of view, and with it the crosshair window.
                     val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
-                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg)
+                    var selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg)
                     raised = PhonePose.isRaised(raised, o.cameraElevationDeg)
+                    // Pointing down (phone on a table): the compass direction means nothing, so only the current city is shown.
+                    lookingDown = LookingDown.isLookingDown(lookingDown, o.cameraElevationDeg)
+                    val city = tick.city
+                    val cityMode = lookingDown && city != null
+                    if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val find = tick.find?.let { e ->
                         FindState(
@@ -192,6 +210,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     _ui.value = _ui.value.copy(
                         raised = raised,
+                        cityMode = cityMode,
                         find = find,
                         azimuthDeg = o.trueAzimuthDeg,
                         compassCalibrated = o.calibrated,
@@ -357,12 +376,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     }
                 }
-                Triple(eyeAlt, evals, found)
+                Pass(eyeAlt, evals, found, evaluateCity(fix, eyeAlt))
             }
-            lastEyeAlt = result.first
-            _ui.value = _ui.value.copy(observerEyeAltM = result.first)
-            evaluations.value = result.second
-            findEval.value = result.third
+            lastEyeAlt = result.eyeAlt
+            _ui.value = _ui.value.copy(observerEyeAltM = result.eyeAlt)
+            evaluations.value = result.evals
+            findEval.value = result.found
+            cityEval.value = result.city
+        }
+    }
+
+    /** Result of one visibility pass. */
+    private class Pass(
+        val eyeAlt: Double?, val evals: List<TargetEvaluation>, val found: TargetEvaluation?, val city: TargetEvaluation?
+    )
+
+    /**
+     * The current city = the nearest SETTLEMENT within CITY_SEARCH_RADIUS_M. Another settlement replaces the previous
+     * one only when it is CITY_SWITCH_MARGIN_M nearer, so GPS jitter (tens to hundreds of metres indoors) cannot flip it.
+     */
+    private suspend fun evaluateCity(fix: ObserverFix, eyeAlt: Double?): TargetEvaluation? {
+        val near = targets.within(fix.lat, fix.lon, 0.0, AppConfig.CITY_SEARCH_RADIUS_M)
+            .filter { it.targetKind == TargetKind.SETTLEMENT }
+        fun distance(t: TargetEntity) = GeoMath.distanceM(fix.lat, fix.lon, t.latitude, t.longitude)
+        val nearest = near.minByOrNull { distance(it) }
+        val previous = currentCity
+        val chosen = when {
+            nearest == null -> null
+            previous == null -> nearest
+            near.any { it.name == previous.name && it.latitude == previous.latitude && it.longitude == previous.longitude } -> {
+                val keep = near.first { it.name == previous.name && it.latitude == previous.latitude && it.longitude == previous.longitude }
+                if (distance(nearest) + AppConfig.CITY_SWITCH_MARGIN_M < distance(keep)) nearest else keep
+            }
+            else -> nearest
+        }
+        currentCity = chosen
+        if (chosen == null) return null
+        return if (eyeAlt != null) {
+            losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, chosen)
+        } else {
+            TargetEvaluation(
+                chosen, GeoMath.bearingDeg(fix.lat, fix.lon, chosen.latitude, chosen.longitude),
+                distance(chosen), Visibility.UNKNOWN
+            )
         }
     }
 
