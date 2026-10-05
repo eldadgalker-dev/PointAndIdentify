@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.13
+// Version 1.14
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -62,8 +62,7 @@ object AppConfig {
     const val CROSSHAIR_ZOOM_EXPONENT = 0.5   // crosshair scale = zoom ^ exponent (zoom below 1 does not shrink it)
     const val CROSSHAIR_SCALE_MAX = 2.5       // upper limit of the crosshair scale
     const val CANDIDATES_MAX = 5              // targets listed by the identify dialog
-    const val VERTICAL_TIEBREAK_WEIGHT = 0.2  // score weight of the vertical angle mismatch (tie-breaker only)
-    const val VERTICAL_TIEBREAK_CAP_DEG = 10.0 // deg, vertical mismatch beyond this adds no further penalty
+    const val VERTICAL_MARGIN_DEG = 0.5       // deg, tolerance added to a target's vertical extent (structure height and DEM noise)
 
     // ===== Parameters: observer altitude from barometer + GPS (see domain/BaroGpsFusion.kt) =====
     const val SEA_LEVEL_PRESSURE_HPA = 1013.25 // hPa, reference of the pressure altitude (only changes matter)
@@ -148,7 +147,7 @@ object AppConfig {
         require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }
         require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
-        require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
+        require(VERTICAL_MARGIN_DEG in 0.0..5.0) { "VERTICAL_MARGIN_DEG out of range" }
         require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {
             "LANGUAGE_DEFAULT_TAG must be a supported language"
         }

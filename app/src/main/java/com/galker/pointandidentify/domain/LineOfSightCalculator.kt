@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.2
+// Version 2.3
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -33,7 +33,8 @@ data class TargetEvaluation(
     val topAltM: Double? = null,            // ground + structure height, m MSL
     val elevationAngleDeg: Double? = null,  // apparent vertical angle from the observer eye
     val obstructionDistanceM: Double? = null,
-    val minClearanceM: Double? = null       // smallest (line - terrain) margin along the path, m
+    val minClearanceM: Double? = null,      // smallest (line - terrain) margin along the path, m
+    val groundAngleDeg: Double? = null      // apparent vertical angle to the target's ground (elevationAngleDeg is its top)
 )
 
 /** Terrain lookup abstraction: returns metres MSL or null when unknown. */
@@ -61,6 +62,7 @@ class LineOfSightCalculator(private val terrain: TerrainSource) {
         val h0 = observerEyeAltM
         val h1Eff = top - GeoMath.curvatureDropM(distance)
         val elevation = Math.toDegrees(atan2(h1Eff - h0, max(distance, 1.0)))
+        val groundAngle = Math.toDegrees(atan2(ground - GeoMath.curvatureDropM(distance) - h0, max(distance, 1.0)))
 
         // Sample count follows DEM resolution so narrow ridges are not skipped.
         val n = max(2, ceil(distance / AppConfig.DEM_SAMPLE_SPACING_M).toInt())
@@ -89,13 +91,13 @@ class LineOfSightCalculator(private val terrain: TerrainSource) {
             if (clearance < -AppConfig.LOS_CLEARANCE_TOLERANCE_M) {
                 return TargetEvaluation(
                     target, bearing, distance, Visibility.OBSTRUCTED,
-                    ground, top, elevation, x, clearance
+                    ground, top, elevation, x, clearance, groundAngle
                 )
             }
         }
 
         val visibility = if (unknown) Visibility.UNKNOWN else Visibility.VISIBLE
         val clearanceOut = if (minClearance.isFinite()) minClearance else null
-        return TargetEvaluation(target, bearing, distance, visibility, ground, top, elevation, null, clearanceOut)
+        return TargetEvaluation(target, bearing, distance, visibility, ground, top, elevation, null, clearanceOut, groundAngle)
     }
 }

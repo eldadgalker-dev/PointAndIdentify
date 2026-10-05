@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.data.db.TargetEntity
@@ -20,11 +20,16 @@ import org.junit.Test
 
 class TargetSelectorTest {
 
-    private fun eval(name: String, bearing: Double, visibility: Visibility = Visibility.VISIBLE) = TargetEvaluation(
+    private fun eval(
+        name: String, bearing: Double, visibility: Visibility = Visibility.VISIBLE,
+        topAngle: Double? = null, groundAngle: Double? = null
+    ) = TargetEvaluation(
         target = TargetEntity(name = name, kind = "tower", latitude = 32.0, longitude = 35.0, altitudeM = 0.0, heightM = null),
         bearingDeg = bearing,
         distanceM = 3_000.0,
-        visibility = visibility
+        visibility = visibility,
+        elevationAngleDeg = topAngle,
+        groundAngleDeg = groundAngle
     )
 
     @Test
@@ -52,6 +57,32 @@ class TargetSelectorTest {
         val onlyHidden = TargetSelector.select(listOf(eval("hidden", 90.1, Visibility.OBSTRUCTED)), 90.0, 50.0, 1.0)
         assertNull(onlyHidden.best)
         assertEquals(1, onlyHidden.candidates.size)
+    }
+
+    @Test
+    fun cameraPointedAtTheSkyOrTheStreetSelectsNothing() {
+        // A target 2.5 deg below the horizon, exactly on the bearing.
+        val e = listOf(eval("T", 90.0, topAngle = -2.5, groundAngle = -2.5))
+        // Camera 8.9 deg up (the sky): 11.4 deg away vertically, far outside the 4.8 deg circle.
+        assertNull(TargetSelector.select(e, 90.0, 50.0, 1.0, 8.9).best)
+        // Camera 13 deg down (the street): also outside.
+        assertNull(TargetSelector.select(e, 90.0, 50.0, 1.0, -13.0).best)
+        // Camera at the target's angle: selected.
+        assertEquals("T", TargetSelector.select(e, 90.0, 50.0, 1.0, -2.0).best!!.target.name)
+    }
+
+    @Test
+    fun tallTargetIsSelectedAnywhereAlongItsHeight() {
+        // Structure seen from -4 deg (ground) to +1 deg (top): the camera may aim at any part of it.
+        val e = listOf(eval("Tall", 90.0, topAngle = 1.0, groundAngle = -4.0))
+        assertEquals("Tall", TargetSelector.select(e, 90.0, 50.0, 1.0, -3.0).best!!.target.name)
+        assertNull(TargetSelector.select(e, 90.0, 50.0, 1.0, 12.0).best)
+    }
+
+    @Test
+    fun withoutVerticalDataOnlyTheBearingIsTested() {
+        val e = listOf(eval("NoTerrain", 90.0, Visibility.UNKNOWN))
+        assertEquals(1, TargetSelector.select(e, 90.0, 50.0, 1.0, 40.0).candidates.size)
     }
 
     @Test
