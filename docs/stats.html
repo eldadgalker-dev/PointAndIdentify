@@ -4,7 +4,7 @@
   This software is released under the BSD 3-Clause License.
   See the LICENSE.txt file in the project root for full license information.
 -->
-<!-- Version 1.3 -->
+<!-- Version 1.4 -->
 <html lang="he" dir="rtl">
 <head>
 <meta charset="utf-8">
@@ -61,6 +61,7 @@
   td.num, th.num { text-align: left; font-variant-numeric: tabular-nums; direction: ltr; }
   tr.latest td:first-child { font-weight: 700; color: var(--visible); }
   #status { min-height: 1.6em; }
+  button { font: inherit; padding: .2rem .8rem; border: 1px solid var(--rule); border-radius: 4px; background: var(--surface); color: var(--ink); cursor: pointer; }
   #status.error { color: var(--hidden); }
 </style>
 </head>
@@ -69,7 +70,7 @@
   <p class="small"><a href="./index.html">← חזרה לעמוד ההתקנה</a></p>
   <h1>סטטיסטיקה</h1>
   <p class="small">הנתונים נשלפים בזמן אמת מ-GitHub Releases. אין איסוף נתונים על משתמשים או מכשירים.</p>
-  <p id="status" role="status">טוען נתונים…</p>
+  <p><span id="status" role="status">טוען נתונים…</span> <button type="button" id="refresh">רענן</button></p>
 
   <div class="totals" id="totals" hidden>
     <div class="total"><span class="num" id="totalDownloads">0</span><span class="lbl">הורדות קובץ ההתקנה (APK)</span></div>
@@ -112,6 +113,7 @@
 <!-- UI strings live in markup so that script code stays English-only. -->
 <template id="strings">
   <span data-key="loadFailed">טעינת הנתונים מ-GitHub נכשלה (ייתכן שחרגת ממכסת הבקשות לשעה). נסה שוב מאוחר יותר.</span>
+  <span data-key="loading">טוען נתונים…</span>
   <span data-key="empty">עדיין לא פורסמו גרסאות.</span>
   <span data-key="updated">עודכן: </span>
   <span data-key="latest"> (אחרונה)</span>
@@ -143,6 +145,7 @@
     const status = document.getElementById("status");
     if (!releases.length) { status.textContent = text("empty"); return; }
     const rows = document.getElementById("rows");
+    rows.textContent = ""; // a refresh redraws the table
     let downloads = 0;
     let checks = 0;
     let installs = 0;
@@ -187,7 +190,7 @@
     const status = document.getElementById("status");
     try {
       const url = "https://api.github.com/repos/" + OWNER + "/" + REPO + "/releases?per_page=" + PER_PAGE;
-      const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" } });
+      const response = await fetch(url, { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
       if (!response.ok) throw new Error("HTTP " + response.status);
       const all = await response.json();
       render(all.filter((r) => !r.draft && !r.prerelease)); // newest first, as returned by GitHub
@@ -196,6 +199,12 @@
       status.className = "error";
     }
   }
+  document.getElementById("refresh").addEventListener("click", () => {
+    const status = document.getElementById("status");
+    status.className = "";
+    status.textContent = text("loading");
+    load();
+  });
   load();
 </script>
 </body>
