@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.15
+// Version 1.16
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -12,6 +12,7 @@ import com.galker.pointandidentify.PointApp
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.data.dem.DemTileRepository
+import com.galker.pointandidentify.domain.AimRay
 import com.galker.pointandidentify.domain.AltitudeEstimate
 import com.galker.pointandidentify.domain.BaroGpsFusion
 import com.galker.pointandidentify.domain.Candidate
@@ -74,6 +75,7 @@ data class UiState(
     val sensorHeightM: Double? = null,  // height above ground from barometer + GPS, null when unavailable
     val sensorSigmaM: Double? = null,   // its standard deviation
     val cityMode: Boolean = false, // camera pointing down: the target is the current city, whatever the azimuth
+    val aimDistanceM: Double? = null, // where the camera axis meets the ground = radius of the current-location circle
     val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
     val find: FindState? = null,
     val tiles: DemTileRepository.FetchStatus = DemTileRepository.FetchStatus(0, 0),
@@ -110,7 +112,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val altitudeFusion = BaroGpsFusion()
     private var lastEyeAlt: Double? = null
     private val locationProvider = LocationProvider(app)
-    private val losCalculator = LineOfSightCalculator(TerrainSource { lat, lon -> dem.elevationM(lat, lon) })
+    private val terrain = TerrainSource { lat, lon -> dem.elevationM(lat, lon) }
+    private val losCalculator = LineOfSightCalculator(terrain)
 
     private val evaluations = MutableStateFlow<List<TargetEvaluation>>(emptyList())
 
@@ -124,6 +127,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     @Volatile
     private var currentCity: TargetEntity? = null
     private var lookingDown = false
+    private var aimNear = false // the camera axis meets the ground within the current-location circle (with hysteresis)
 
     /** One sensor/data snapshot for the throttled UI update. */
     private class Tick(
@@ -199,7 +203,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Pointing down (phone on a table): the compass direction means nothing, so only the current city is shown.
                     lookingDown = LookingDown.isLookingDown(lookingDown, o.cameraElevationDeg)
                     val city = tick.city
-                    val cityMode = lookingDown && city != null
+                    // Where the camera axis meets the ground (terrain ray cast from the real eye altitude).
+                    val fixNow = _ui.value.fix
+                    val eyeNow = lastEyeAlt
+                    val aim = if (fixNow != null && eyeNow != null) {
+                        AimRay.groundDistanceM(terrain, fixNow.lat, fixNow.lon, eyeNow, o.trueAzimuthDeg, o.cameraElevationDeg)
+                    } else null
+                    aimNear = when {
+                        aim == null -> false
+                        aim <= AppConfig.CITY_AIM_RADIUS_M -> true
+                        aim > AppConfig.CITY_AIM_EXIT_M -> false
+                        else -> aimNear
+                    }
+                    val cityMode = (lookingDown || aimNear) && city != null
                     if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val find = tick.find?.let { e ->
@@ -211,6 +227,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.value = _ui.value.copy(
                         raised = raised,
                         cityMode = cityMode,
+                        aimDistanceM = aim,
                         find = find,
                         azimuthDeg = o.trueAzimuthDeg,
                         compassCalibrated = o.calibrated,

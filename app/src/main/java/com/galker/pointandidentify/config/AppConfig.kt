@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.16
+// Version 1.17
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -85,6 +85,9 @@ object AppConfig {
     // ===== Parameters: current-city mode (camera pointing well below the horizon, e.g. the street below or a phone on a table) =====
     const val CITY_MODE_BELOW_DEG = -6.0      // deg, camera elevation below this = show only the current city
     const val CITY_MODE_EXIT_DEG = -4.0       // deg, camera elevation above this = leave city mode (hysteresis)
+    const val AIM_RAY_MAX_M = 5_000.0         // m, longest distance at which the camera axis is intersected with the terrain
+    const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
+    const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
     const val CITY_SEARCH_RADIUS_M = 15_000.0 // m, the current city is the nearest settlement within this range
     const val CITY_SWITCH_MARGIN_M = 500.0    // m, another settlement replaces the current one only when this much nearer
 
@@ -149,6 +152,9 @@ object AppConfig {
         }
         require(ALT_LOWER_BOUND_SIGMAS >= 0.0 && ALT_RECALC_M > 0.0) { "Invalid altitude bound parameters" }
         require(CITY_MODE_BELOW_DEG < CITY_MODE_EXIT_DEG) { "CITY_MODE_BELOW_DEG must be below CITY_MODE_EXIT_DEG (hysteresis)" }
+        require(0.0 < CITY_AIM_RADIUS_M && CITY_AIM_RADIUS_M < CITY_AIM_EXIT_M && CITY_AIM_EXIT_M <= AIM_RAY_MAX_M) {
+            "Invalid current-location circle radii"
+        }
         require(CITY_SEARCH_RADIUS_M > 0 && CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }

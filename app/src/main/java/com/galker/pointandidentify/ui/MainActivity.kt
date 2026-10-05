@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.16
+// Version 1.17
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -923,7 +923,21 @@ class MainActivity : AppCompatActivity() {
         // No visible target: say so, but point out hidden ones inside the crosshair (listed by a tap on it).
         // Camera pointing down: only the current city, whatever the azimuth.
         if (state.cityMode && state.target != null) {
-            return OverlayContent(state.target.target.name, getString(R.string.city_current), visible = true)
+            // The circle diameter is twice the distance at which the camera axis meets the ground: the higher above the
+            // aimed ground, the larger the circle; lowering the camera shrinks it.
+            val aim = state.aimDistanceM
+            val secondary = if (aim != null) {
+                val diameter = 2.0 * aim
+                val text = if (diameter >= 1000.0) {
+                    fmt("%.1f", diameter / 1000.0) + " " + getString(R.string.unit_km)
+                } else {
+                    getString(R.string.info_meters, diameter.roundToInt())
+                }
+                getString(R.string.city_current_circle, text)
+            } else {
+                getString(R.string.city_current)
+            }
+            return OverlayContent(state.target.target.name, secondary, visible = true)
         }
         val t = state.target ?: return OverlayContent(
             if (state.candidates.isEmpty()) getString(R.string.status_no_target)
