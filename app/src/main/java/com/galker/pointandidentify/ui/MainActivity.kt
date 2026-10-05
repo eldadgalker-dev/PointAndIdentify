@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.15
+// Version 1.16
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -960,7 +960,7 @@ class MainActivity : AppCompatActivity() {
                 state.cameraElevationDeg?.let { fmt("%+.1f°", it) } ?: none
             )
         )
-        val position = if (state.raised) t?.let { fmt("%.5f, %.5f", it.target.latitude, it.target.longitude) } else null
+        val position = if (state.raised && !state.cityMode) t?.let { fmt("%.5f, %.5f", it.target.latitude, it.target.longitude) } else null
         val target = listOf(
             getString(R.string.info_target_kind, t?.let { getString(kindLabel(it.target.targetKind)) } ?: none),
             getString(R.string.info_target_height, t?.let { altText(it.topAltM) } ?: none),
