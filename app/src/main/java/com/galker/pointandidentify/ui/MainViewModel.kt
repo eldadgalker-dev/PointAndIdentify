@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.8
+// Version 1.9
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -93,7 +93,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val update: StateFlow<UpdateState> = _update
 
     @Volatile
-    var hfovDeg: Double = AppConfig.DEFAULT_HFOV_DEG // un-zoomed horizontal FOV
+    var hfovDeg: Double = AppConfig.DEFAULT_HFOV_DEG // un-zoomed horizontal FOV of the part of the image the screen shows
 
     private val zoom = MutableStateFlow(AppConfig.ZOOM_MIN_FALLBACK)
 
@@ -142,7 +142,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .collect { (o, evals, z) ->
                     // Zoom narrows the field of view, and with it the crosshair window.
                     val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
-                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, o.cameraElevationDeg)
+                    val selection = TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg)
                     _ui.value = _ui.value.copy(
                         azimuthDeg = o.trueAzimuthDeg,
                         compassCalibrated = o.calibrated,

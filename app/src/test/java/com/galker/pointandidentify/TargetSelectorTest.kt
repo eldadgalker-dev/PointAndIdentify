@@ -1,12 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassVerdict
+import com.galker.pointandidentify.domain.CrosshairWindow
 import com.galker.pointandidentify.domain.TargetEvaluation
 import com.galker.pointandidentify.domain.TargetSelector
 import com.galker.pointandidentify.domain.Visibility
@@ -25,28 +26,38 @@ class TargetSelectorTest {
     )
 
     @Test
-    fun targetOutsideToleranceIsRejected() {
-        // Tower tolerance floor is 3 deg: a bearing 5 deg off the axis is outside the window.
-        val s = TargetSelector.select(listOf(eval("B", 95.0)), 90.0, 60.0)
+    fun crosshairRadiusInDegrees() {
+        // tan(angle) = 2 * 0.09 * tan(25 deg) -> 4.80 deg at hfov 50, zoom 1
+        assertEquals(4.80, CrosshairWindow.halfAngleDeg(50.0, 1.0), 0.05)
+    }
+
+    @Test
+    fun targetOutsideCrosshairIsRejected() {
+        // Window = 4.8 deg circle + 0.57 deg tower half-width: a bearing 10 deg off the axis is outside.
+        val s = TargetSelector.select(listOf(eval("B", 100.0)), 90.0, 50.0, 1.0)
         assertNull(s.best)
         assertTrue(s.candidates.isEmpty())
     }
 
     @Test
-    fun visibleTargetBeatsCloserHiddenOne() {
-        val s = TargetSelector.select(
-            listOf(eval("hidden", 90.1, Visibility.OBSTRUCTED), eval("visible", 91.5)), 90.0, 60.0
+    fun liveTargetIsVisibleOnlyHiddenOnesStayInTheList() {
+        val both = TargetSelector.select(
+            listOf(eval("hidden", 90.1, Visibility.OBSTRUCTED), eval("visible", 91.5)), 90.0, 50.0, 1.0
         )
-        assertEquals("visible", s.best!!.target.name)
-        assertEquals(2, s.candidates.size)
+        assertEquals("visible", both.best!!.target.name)
+        assertEquals(listOf("visible", "hidden"), both.candidates.map { it.evaluation.target.name })
+
+        val onlyHidden = TargetSelector.select(listOf(eval("hidden", 90.1, Visibility.OBSTRUCTED)), 90.0, 50.0, 1.0)
+        assertNull(onlyHidden.best)
+        assertEquals(1, onlyHidden.candidates.size)
     }
 
     @Test
     fun zoomNarrowsTheWindow() {
-        val e = listOf(eval("A", 92.0)) // 2 deg off the axis
-        assertEquals("A", TargetSelector.select(e, 90.0, TargetSelector.effectiveHfovDeg(60.0, 1.0)).best!!.target.name)
-        // zoom x20: hfov ~3.3 deg, half-window ~1.65 deg < 2 deg
-        assertNull(TargetSelector.select(e, 90.0, TargetSelector.effectiveHfovDeg(60.0, 20.0)).best)
+        val e = listOf(eval("A", 95.0)) // 5 deg off the axis
+        assertEquals("A", TargetSelector.select(e, 90.0, TargetSelector.effectiveHfovDeg(50.0, 1.0), 1.0).best!!.target.name)
+        // zoom x20: hfov ~2.7 deg, crosshair ~0.6 deg + 0.57 deg half-width < 5 deg
+        assertNull(TargetSelector.select(e, 90.0, TargetSelector.effectiveHfovDeg(50.0, 20.0), 20.0).best)
     }
 
     @Test

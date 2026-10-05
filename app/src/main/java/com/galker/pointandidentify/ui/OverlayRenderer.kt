@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.8
+// Version 1.9
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -13,9 +13,10 @@ import android.text.StaticLayout
 import android.text.TextDirectionHeuristic
 import android.text.TextDirectionHeuristics
 import android.text.TextPaint
+import com.galker.pointandidentify.config.AppConfig
+import com.galker.pointandidentify.domain.CrosshairWindow
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.pow
 
 /**
  * Texts drawn on top of the camera image.
@@ -64,10 +65,8 @@ data class OverlayInsets(
 class OverlayRenderer {
 
     // ===== Parameters (fractions of the shorter canvas edge) =====
-    private val crosshairRadiusRatio = 0.09f
+    private val crosshairRadiusRatio = AppConfig.CROSSHAIR_RADIUS_RATIO.toFloat() // shared with the target window
     private val crosshairArmRatio = 0.045f
-    private val crosshairZoomExponent = 0.5 // crosshair scale = zoom ^ exponent (zoom below 1 does not shrink it)
-    private val crosshairScaleMax = 2.5f    // upper limit of the crosshair scale
     private val strokeRatio = 0.004f
     private val primaryTextRatio = 0.072f
     private val secondaryTextRatio = 0.046f
@@ -212,8 +211,7 @@ class OverlayRenderer {
     }
 
     /** Crosshair scale for a zoom ratio: grows with zoom, never below 1, capped. */
-    private fun crosshairScale(zoomRatio: Double): Float =
-        max(1.0, zoomRatio).pow(crosshairZoomExponent).toFloat().coerceAtMost(crosshairScaleMax)
+    private fun crosshairScale(zoomRatio: Double): Float = CrosshairWindow.scale(zoomRatio).toFloat()
 
     /** Outer radius of the crosshair (circle plus arms), px; used for tap hit-testing in the live view. */
     fun crosshairOuterRadius(width: Int, height: Int, zoomRatio: Double): Float =

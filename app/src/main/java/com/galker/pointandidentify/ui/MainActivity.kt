@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.8
+// Version 1.9
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -74,6 +74,7 @@ import kotlin.math.ln
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.tan
 
 /** UI shell only: camera binding, permissions, rendering of ViewModel state. No domain logic here. */
 class MainActivity : AppCompatActivity() {
@@ -97,6 +98,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tapDetector: GestureDetector
     private var updateStatusLine: String? = null       // update progress line shown in the status block
     private var exiting = false
+    private var sensorHfovDeg = AppConfig.DEFAULT_HFOV_DEG // horizontal FOV of the full sensor image (portrait short side)
 
     /** Camera zoom state -> zoom bar and ViewModel. */
     private val zoomObserver = Observer<ZoomState> { st ->
@@ -149,6 +151,7 @@ class MainActivity : AppCompatActivity() {
 
         // Zoom: vertical bar (log scale) and pinch gesture both end in setZoom().
         binding.zoomBar.onValueChanged = { setZoom(sliderToZoom(it.toDouble())) }
+        binding.viewFinder.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyVisibleHfov() }
         scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 if (camera == null) return false
@@ -528,7 +531,8 @@ class MainActivity : AppCompatActivity() {
                 provider.unbindAll()
                 val bound = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
                 camera = bound
-                horizontalFovDeg(bound)?.let { vm.hfovDeg = it }
+                horizontalFovDeg(bound)?.let { sensorHfovDeg = it }
+                applyVisibleHfov()
                 zoomLive?.removeObserver(zoomObserver)
                 zoomLive = bound.cameraInfo.zoomState.also { it.observe(this, zoomObserver) }
             } catch (e: Exception) {
@@ -553,6 +557,18 @@ class MainActivity : AppCompatActivity() {
         } else null
     } catch (e: Exception) {
         null
+    }
+
+    /**
+     * The preview fills the screen (centre crop). A 3:4 image on a taller screen loses its left and right parts,
+     * so the visible horizontal FOV is smaller than the sensor FOV: tan(visible / 2) = tan(sensor / 2) * (view w/h) / (image w/h).
+     * The target window must use the visible FOV, because the crosshair is drawn on the visible image.
+     */
+    private fun applyVisibleHfov() {
+        val w = binding.viewFinder.width
+        val h = binding.viewFinder.height
+        val fraction = if (w > 0 && h > 0) minOf(1.0, (w.toDouble() / h) / AppConfig.PREVIEW_ASPECT) else 1.0
+        vm.hfovDeg = Math.toDegrees(2.0 * atan(tan(Math.toRadians(sensorHfovDeg / 2.0)) * fraction))
     }
 
     private fun capture() {
@@ -690,30 +706,20 @@ class MainActivity : AppCompatActivity() {
         return base.copy(infoLines = infoLines(state), zoomRatio = state.zoomRatio, rtl = rtl)
     }
 
+    /** The live view shows visible targets only (the selector guarantees it); hidden ones are listed by a tap on the crosshair. */
     private fun targetContent(state: UiState, az: Int?): OverlayContent {
         val azText = az?.let { getString(R.string.status_azimuth, it) } ?: ""
         val t = state.target ?: return OverlayContent(getString(R.string.status_no_target), azText)
         val km = t.distanceM / 1000.0
         val bearing = t.bearingDeg.roundToInt().mod(360)
-        val name = t.target.name
-        return when (t.visibility) {
-            Visibility.VISIBLE -> OverlayContent(
-                name, getString(R.string.target_visible_details, km, bearing), visible = true
-            )
-            Visibility.OBSTRUCTED -> OverlayContent(
-                getString(R.string.target_hidden_name, name),
-                getString(R.string.target_hidden_details, (t.obstructionDistanceM ?: 0.0) / 1000.0, bearing)
-            )
-            Visibility.UNKNOWN -> OverlayContent(
-                getString(R.string.target_unknown_name, name),
-                getString(R.string.target_visible_details, km, bearing)
-            )
-        }
+        return OverlayContent(
+            t.target.name, getString(R.string.target_visible_details, km, bearing), visible = true
+        )
     }
 
     /**
      * Data block shown on screen and burned into the photo, one group per topic, one fact per line:
-     *   observer position / accuracy / eye height, camera vertical angle,
+     *   observer position / accuracy, height and camera vertical angle (one line),
      *   target kind / height / position, and target geometry (range, azimuth, angle, clearance).
      * The camera azimuth is shown under the compass and the zoom next to the zoom bar, not here.
      */
@@ -724,12 +730,11 @@ class MainActivity : AppCompatActivity() {
                 listOf(
                     getString(R.string.info_observer_pos, fix.lat, fix.lon),
                     getString(R.string.info_observer_acc, fix.horizontalAccuracyM.roundToInt()),
-                    getString(R.string.info_eye_height, altText(state.observerEyeAltM))
+                    state.cameraElevationDeg
+                        ?.let { getString(R.string.info_height_angle, altText(state.observerEyeAltM), it) }
+                        ?: getString(R.string.info_height, altText(state.observerEyeAltM))
                 ).joinToString("\n")
             )
-        }
-        state.cameraElevationDeg?.let { elevation ->
-            groups.add(getString(R.string.info_vertical_angle, elevation))
         }
         state.target?.let { t ->
             groups.add(

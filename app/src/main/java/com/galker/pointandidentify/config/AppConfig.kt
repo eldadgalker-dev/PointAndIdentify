@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.7
+// Version 1.8
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -44,8 +44,13 @@ object AppConfig {
     const val GEOID_UNDULATION_FALLBACK_M = 20.0 // m, ESTIMATE for Israel; used only without DEM and MSL
 
     // ===== Parameters: target selection =====
-    const val BASE_TOLERANCE_DEG = 3.0        // deg, minimum angular acceptance (compass error)
     const val DEFAULT_HFOV_DEG = 60.0         // deg, used when camera FOV is unavailable
+    const val PREVIEW_ASPECT = 3.0 / 4.0      // width / height of the (portrait) camera image; the view crops it to the screen shape
+
+    // ===== Parameters: crosshair (shared by the drawing and by the target window) =====
+    const val CROSSHAIR_RADIUS_RATIO = 0.09   // circle radius as a fraction of the shorter screen edge, at zoom 1
+    const val CROSSHAIR_ZOOM_EXPONENT = 0.5   // crosshair scale = zoom ^ exponent (zoom below 1 does not shrink it)
+    const val CROSSHAIR_SCALE_MAX = 2.5       // upper limit of the crosshair scale
     const val CANDIDATES_MAX = 5              // targets listed by the identify dialog
     const val VERTICAL_TIEBREAK_WEIGHT = 0.2  // score weight of the vertical angle mismatch (tie-breaker only)
     const val VERTICAL_TIEBREAK_CAP_DEG = 10.0 // deg, vertical mismatch beyond this adds no further penalty
@@ -92,6 +97,10 @@ object AppConfig {
         require(REFRACTION_K in 0.0..0.5) { "REFRACTION_K out of physical range" }
         require(AZIMUTH_SMOOTHING_ALPHA in 0.01f..1f) { "AZIMUTH_SMOOTHING_ALPHA out of range" }
         require(TILE_DOWNLOAD_PARALLELISM in 1..8) { "TILE_DOWNLOAD_PARALLELISM out of range" }
+        require(CROSSHAIR_RADIUS_RATIO in 0.01..0.5 && CROSSHAIR_SCALE_MAX >= 1.0 && CROSSHAIR_ZOOM_EXPONENT >= 0.0) {
+            "Invalid crosshair parameters"
+        }
+        require(PREVIEW_ASPECT in 0.1..1.0) { "PREVIEW_ASPECT must be a portrait ratio" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
         require(LANGUAGE_DEFAULT_TAG == LANGUAGE_ENGLISH_TAG || LANGUAGE_DEFAULT_TAG == LANGUAGE_HEBREW_TAG) {
