@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.11
+// Version 1.12
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -261,6 +261,13 @@ class MainActivity : AppCompatActivity() {
                 applyZoomBarSide()
             }
         }
+        val observerHeight = MaterialButton(this).apply {
+            text = getString(R.string.settings_observer_height, fmt("%.1f", UserSettings.observerHeightM(this@MainActivity)))
+            setOnClickListener {
+                dialog?.dismiss()
+                showObserverHeight()
+            }
+        }
         val privatePoints = MaterialButton(this).apply {
             text = getString(R.string.settings_private_points)
             setOnClickListener {
@@ -274,6 +281,7 @@ class MainActivity : AppCompatActivity() {
             addView(switchLanguage)
             addView(switchBarSide)
             addView(privatePoints)
+            addView(observerHeight)
             addView(checkUpdate)
         }
         dialog = AlertDialog.Builder(this)
@@ -301,6 +309,44 @@ class MainActivity : AppCompatActivity() {
         set.applyTo(root)
         binding.zoomBar.onLeft = !onRight
         binding.overlayView.zoomBarOnLeft = !onRight
+    }
+
+    /** Height above the ground at the observer's spot; visibility is computed from this height. */
+    private fun showObserverHeight() {
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        val input = EditText(this).apply {
+            setText(fmt("%.1f", UserSettings.observerHeightM(this@MainActivity)))
+            setSelection(text.length)
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            setSingleLine()
+        }
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            addView(TextView(this@MainActivity).apply { setText(R.string.observer_height_hint) })
+            addView(input)
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.observer_height_title)
+            .setView(box)
+            .setPositiveButton(R.string.points_save, null) // click handler set below so invalid input keeps the dialog open
+            .setNegativeButton(R.string.dialog_close, null)
+            .create()
+        dialog.setOnShowListener {
+            input.requestFocus()
+            dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val value = input.text.toString().trim().replace(',', '.').toDoubleOrNull()
+                if (value == null || value < 0.0 || value > AppConfig.OBSERVER_HEIGHT_MAX_M) {
+                    toast(getString(R.string.observer_height_invalid, AppConfig.OBSERVER_HEIGHT_MAX_M.toInt()))
+                } else {
+                    UserSettings.setObserverHeightM(this, value)
+                    vm.refreshTargets() // visibility depends on the height
+                    toast(getString(R.string.observer_height_saved))
+                    dialog.dismiss()
+                }
+            }
+        }
+        dialog.show()
     }
 
     // ===== Private points =====
@@ -638,6 +684,7 @@ class MainActivity : AppCompatActivity() {
     private fun capture() {
         val ic = imageCapture ?: return
         val extra = extraZoom // zoom at the moment of the click, applied to this photo
+        val viewAspect = binding.viewFinder.width.toDouble() / binding.viewFinder.height.coerceAtLeast(1) // photo = screen shape
         val state = vm.ui.value
         val content = buildPhotoContent(state)
         val t = state.target
@@ -656,7 +703,7 @@ class MainActivity : AppCompatActivity() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 lifecycleScope.launch {
                     val ok = try {
-                        photoExporter.export(image, content, meta, extra)
+                        photoExporter.export(image, content, meta, extra, viewAspect)
                         true
                     } catch (e: Exception) {
                         Log.e(TAG, "Photo export failed", e)
@@ -850,7 +897,12 @@ class MainActivity : AppCompatActivity() {
     /** The live view shows visible targets only (the selector guarantees it); hidden ones are listed by a tap on the crosshair. */
     private fun targetContent(state: UiState, az: Int?): OverlayContent {
         val azText = az?.let { getString(R.string.status_azimuth, it) } ?: ""
-        val t = state.target ?: return OverlayContent(getString(R.string.status_no_target), azText)
+        // No visible target: say so, but point out hidden ones inside the crosshair (listed by a tap on it).
+        val t = state.target ?: return OverlayContent(
+            if (state.candidates.isEmpty()) getString(R.string.status_no_target)
+            else getString(R.string.status_hidden_in_crosshair, state.candidates.size),
+            azText
+        )
         val km = t.distanceM / 1000.0
         val bearing = t.bearingDeg.roundToInt().mod(360)
         return OverlayContent(

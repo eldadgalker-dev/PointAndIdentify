@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.capture
 
 import android.content.ContentValues
@@ -49,11 +49,15 @@ class PhotoExporter(private val context: Context) {
     /**
      * Must be called on a background thread; closes the ImageProxy.
      * extraZoom > 1 applies the extra calculated zoom: the centre 1/extraZoom of the frame is kept (no upscaling).
+     * viewAspect (width / height of the on-screen preview, 0 = none): the photo is cut to the shape of the screen view,
+     * so the saved picture shows what the user saw, with the crosshair at the same place in the picture.
      */
-    suspend fun export(image: ImageProxy, content: OverlayContent, meta: PhotoMeta, extraZoom: Double = 1.0): Uri =
+    suspend fun export(
+        image: ImageProxy, content: OverlayContent, meta: PhotoMeta, extraZoom: Double = 1.0, viewAspect: Double = 0.0
+    ): Uri =
         withContext(Dispatchers.Default) {
             val rotation = image.imageInfo.rotationDegrees
-            val bitmap = image.use { cropCentre(decodeMutable(it), extraZoom) }
+            val bitmap = image.use { cropToView(decodeMutable(it), rotation, viewAspect, extraZoom) }
             try {
                 burnOverlay(bitmap, rotation, content)
                 val tmp = File(context.cacheDir, "capture_tmp.jpg")
@@ -65,11 +69,25 @@ class PhotoExporter(private val context: Context) {
             }
         }
 
-    /** Centre crop for the calculated zoom; returns the source itself when no crop is needed. */
-    private fun cropCentre(src: Bitmap, extraZoom: Double): Bitmap {
-        if (extraZoom <= 1.001) return src
-        val cw = (src.width / extraZoom).toInt().coerceAtLeast(1)
-        val ch = (src.height / extraZoom).toInt().coerceAtLeast(1)
+    /**
+     * Centre crop to the screen shape and the calculated zoom, done in the upright frame and mapped to the raw
+     * sensor pixels (width and height swap for 90 / 270 degrees). Returns the source itself when no crop is needed.
+     */
+    private fun cropToView(src: Bitmap, rotation: Int, viewAspect: Double, extraZoom: Double): Bitmap {
+        val quarter = rotation % 180 != 0
+        val uprightW = (if (quarter) src.height else src.width).toDouble()
+        val uprightH = (if (quarter) src.width else src.height).toDouble()
+        var cropW = uprightW
+        var cropH = uprightH
+        if (viewAspect > 0.0) {
+            if (viewAspect < cropW / cropH) cropW = cropH * viewAspect else cropH = cropW / viewAspect
+        }
+        val zoom = maxOf(extraZoom, 1.0)
+        cropW /= zoom
+        cropH /= zoom
+        val cw = (if (quarter) cropH else cropW).toInt().coerceIn(1, src.width)
+        val ch = (if (quarter) cropW else cropH).toInt().coerceIn(1, src.height)
+        if (cw == src.width && ch == src.height) return src
         val cropped = Bitmap.createBitmap(src, (src.width - cw) / 2, (src.height - ch) / 2, cw, ch)
         if (cropped !== src) src.recycle()
         // The overlay is drawn onto this bitmap, so it must be mutable.

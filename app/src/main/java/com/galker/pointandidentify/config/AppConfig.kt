@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.10
+// Version 1.11
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -41,7 +41,8 @@ object AppConfig {
     const val MIN_TARGET_RANGE_M = 300.0      // m, observer standing at/inside a target does not select it
     const val LOS_RECALC_DISTANCE_M = 150.0   // m, observer movement that triggers LOS recompute
     const val DEM_SAMPLE_SPACING_M = 30.0     // m, ~ SRTM1 cell size
-    const val EYE_HEIGHT_M = 1.7              // m, observer eye above ground
+    const val EYE_HEIGHT_M = 1.7              // m, default observer eye above ground (the user can change it in Settings)
+    const val OBSERVER_HEIGHT_MAX_M = 500.0   // m, upper limit of the user-entered height above ground
     // Target height, footprint exclusion and angular radius are per kind: see domain/TargetKind.kt
     const val EARTH_RADIUS_M = 6_371_008.8    // m, mean Earth radius
     const val REFRACTION_K = 0.13             // standard atmospheric refraction coefficient
@@ -105,6 +106,7 @@ object AppConfig {
         require(MAX_TARGET_RANGE_M <= FETCH_RADIUS_M) { "MAX_TARGET_RANGE_M must not exceed FETCH_RADIUS_M" }
         require(MIN_TARGET_RANGE_M in 0.0..MAX_TARGET_RANGE_M) { "MIN_TARGET_RANGE_M out of range" }
         require(TILE_SAMPLES == (SAMPLES_PER_DEG * TILE_DEG).toInt() + 1) { "TILE_SAMPLES inconsistent with TILE_DEG" }
+        require(EYE_HEIGHT_M in 0.0..OBSERVER_HEIGHT_MAX_M) { "EYE_HEIGHT_M out of range" }
         require(DEM_SAMPLE_SPACING_M > 0 && EYE_HEIGHT_M >= 0) { "Invalid LOS parameters" }
         require(REFRACTION_K in 0.0..0.5) { "REFRACTION_K out of physical range" }
         require(AZIMUTH_SMOOTHING_ALPHA in 0.01f..1f) { "AZIMUTH_SMOOTHING_ALPHA out of range" }

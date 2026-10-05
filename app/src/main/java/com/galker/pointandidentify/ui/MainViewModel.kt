@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.11
+// Version 1.12
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -322,7 +322,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** DEM ground + eye height is preferred: GPS vertical error is typically several times larger. */
     private fun observerEyeAltitude(fix: ObserverFix): Double? =
-        dem.elevationM(fix.lat, fix.lon)?.let { it + AppConfig.EYE_HEIGHT_M } ?: fix.mslAltitudeM
+        dem.elevationM(fix.lat, fix.lon)?.let { it + UserSettings.observerHeightM(getApplication<Application>()) } ?: fix.mslAltitudeM
 
     private fun moved(a: ObserverFix, b: ObserverFix) = GeoMath.distanceM(a.lat, a.lon, b.lat, b.lon)
 
