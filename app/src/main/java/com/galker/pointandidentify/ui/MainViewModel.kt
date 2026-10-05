@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.13
+// Version 1.14
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -34,6 +34,7 @@ import com.galker.pointandidentify.sensors.Orientation
 import com.galker.pointandidentify.sensors.OrientationProvider
 import com.galker.pointandidentify.sensors.PressureProvider
 import com.galker.pointandidentify.update.RemoteVersion
+import com.galker.pointandidentify.update.UpdateSchedule
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -137,7 +138,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     var lastReportedCompass: CompassReport? = null
 
     private var startupChecksDone = false
-    private var updateCheckDone = false
+    private var lastUpdateAttemptMs = 0L // SystemClock.elapsedRealtime of the last automatic or manual check; 0 = none yet
+    private var lastUpdateSucceeded = false
+    private var usagePingStarted = false
     private var compassJob: Job? = null
 
     private var lastLosFix: ObserverFix? = null
@@ -227,12 +230,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ===== Start-up checks =====
 
-    /** Update check on every app launch (once per ViewModel); needs no permissions. */
-    fun startUpdateCheckOnce() {
-        if (updateCheckDone) return
-        updateCheckDone = true
-        checkForUpdate(silent = true)
-        viewModelScope.launch { services.usagePing.sendIfDue() } // anonymous per-version counter, see UsagePing
+    /**
+     * Automatic update check: on every launch, again when the user returns after UPDATE_CHECK_INTERVAL_MS,
+     * and after UPDATE_RETRY_INTERVAL_MS when the last check failed. Needs no permissions; silent unless an update exists.
+     */
+    fun startUpdateCheckIfDue() {
+        if (UpdateSchedule.isDue(lastUpdateAttemptMs, lastUpdateSucceeded, SystemClock.elapsedRealtime())) {
+            checkForUpdate(silent = true)
+        }
+        if (!usagePingStarted) { // once per launch; UsagePing itself sends once per installed version
+            usagePingStarted = true
+            viewModelScope.launch { services.usagePing.sendIfDue() } // anonymous per-version counter, see UsagePing
+        }
     }
 
     /** Runs once per process after permissions are granted: compass health. */
@@ -384,9 +393,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (current is UpdateState.Checking || current is UpdateState.Downloading) return
         if (current is UpdateState.ReadyToInstall && current.apk.exists()) return
         silentUpdateCheck = silent
+        lastUpdateAttemptMs = SystemClock.elapsedRealtime()
         _update.value = UpdateState.Checking
         viewModelScope.launch {
-            _update.value = try {
+            val result = try {
                 updater.checkForUpdate()?.let { UpdateState.Available(it) }
                     ?: UpdateState.UpToDate(updater.installedVersionName)
             } catch (e: CancellationException) {
@@ -394,6 +404,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 UpdateState.Failed
             }
+            lastUpdateSucceeded = result !is UpdateState.Failed
+            _update.value = result
         }
     }
 

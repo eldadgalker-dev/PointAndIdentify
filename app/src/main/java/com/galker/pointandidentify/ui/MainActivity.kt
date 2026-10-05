@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.13
+// Version 1.14
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -188,7 +188,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        vm.startUpdateCheckOnce() // every launch checks for a newer version, even before permissions are granted
+        vm.startUpdateCheckIfDue() // every launch (and a return after a while) checks for a newer version, even before permissions are granted
         vm.orientationProvider.start()
         vm.pressureProvider.start()
         if (hasCorePermissions()) {

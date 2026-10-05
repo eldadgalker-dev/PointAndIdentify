@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.12
+// Version 1.13
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -25,6 +25,10 @@ object AppConfig {
     const val RELEASE_INSTALL_ASSET = "install.json"   // downloaded once per fresh installation: counts new installs
     const val RELEASE_LAUNCH_ASSET = "launch.json"     // downloaded once per installed version: counts devices per version
     const val USAGE_PING_MAX_FAILURES = 3              // attempts per version before the counter gives up
+
+    // ===== Parameters: automatic update check =====
+    const val UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000L // ms, repeat the check when the user returns to the app after this long
+    const val UPDATE_RETRY_INTERVAL_MS = 60 * 1000L      // ms, retry after a failed check (no network)
 
     // ===== Parameters: terrain tiles =====
     const val TILE_DEG = 0.1                  // deg, tile edge length (lat and lon)
@@ -141,6 +145,7 @@ object AppConfig {
         require(ALT_LOWER_BOUND_SIGMAS >= 0.0 && ALT_RECALC_M > 0.0) { "Invalid altitude bound parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
+        require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }
         require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_TIEBREAK_WEIGHT in 0.0..1.0 && VERTICAL_TIEBREAK_CAP_DEG > 0) { "Invalid vertical tie-break" }
