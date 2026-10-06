@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.location
 
 import android.annotation.SuppressLint
@@ -9,9 +9,11 @@ import android.content.Context
 import android.location.Location
 import android.os.Build
 import android.os.Looper
+import android.os.SystemClock
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.galker.pointandidentify.config.AppConfig
@@ -31,6 +33,7 @@ data class ObserverFix(
 class LocationProvider(context: Context) {
 
     private val client = LocationServices.getFusedLocationProviderClient(context)
+    private val filter = PositionFilter() // accuracy-weighted smoothing of the fused fixes
 
     private val _fix = MutableStateFlow<ObserverFix?>(null)
     val fix: StateFlow<ObserverFix?> = _fix
@@ -44,11 +47,19 @@ class LocationProvider(context: Context) {
     /** Caller must hold ACCESS_FINE_LOCATION. */
     @SuppressLint("MissingPermission")
     fun start() {
+        // Same provider as the navigation and camera apps (fused: GNSS + Wi-Fi + cell + inertial sensors), best accuracy.
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, AppConfig.LOCATION_INTERVAL_MS)
             .setMinUpdateIntervalMillis(AppConfig.LOCATION_MIN_INTERVAL_MS)
+            .setMinUpdateDistanceMeters(0f)
+            .setGranularity(Granularity.GRANULARITY_FINE)
             .build()
+        filter.reset()
         client.requestLocationUpdates(request, callback, Looper.getMainLooper())
-        client.lastLocation.addOnSuccessListener { loc -> if (loc != null && _fix.value == null) _fix.value = toFix(loc) }
+        client.lastLocation.addOnSuccessListener { loc ->
+            // A cached location is only a start; an old one may be far from the present position.
+            val ageMs = (SystemClock.elapsedRealtimeNanos() - (loc?.elapsedRealtimeNanos ?: 0L)) / 1_000_000L
+            if (loc != null && _fix.value == null && ageMs <= AppConfig.LOCATION_LAST_FIX_MAX_AGE_MS) _fix.value = toFix(loc)
+        }
     }
 
     fun stop() {
@@ -65,8 +76,12 @@ class LocationProvider(context: Context) {
             loc.hasAltitude() -> loc.altitude - AppConfig.GEOID_UNDULATION_FALLBACK_M
             else -> null
         }
+        val filtered = filter.update(
+            loc.elapsedRealtimeNanos / 1_000_000L, loc.latitude, loc.longitude, loc.accuracy.toDouble(),
+            if (loc.hasSpeed()) loc.speed.toDouble() else null
+        )
         return ObserverFix(
-            loc.latitude, loc.longitude, msl, loc.accuracy,
+            filtered.lat, filtered.lon, msl, filtered.accuracyM.toFloat(),
             if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters else null,
             altitudeIsEstimated = platformMsl == null && msl != null
         )

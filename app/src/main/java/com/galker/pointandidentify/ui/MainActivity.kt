@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.20
+// Version 1.21
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -33,6 +33,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
@@ -56,6 +57,11 @@ import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.galker.pointandidentify.R
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.Priority
 import com.google.android.material.button.MaterialButton
 import com.galker.pointandidentify.capture.PhotoExporter
 import com.galker.pointandidentify.capture.PhotoMeta
@@ -101,6 +107,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tapDetector: GestureDetector
     private var updateStatusLine: String? = null       // update progress line shown in the status block
     private var exiting = false
+    private var locationSettingsAsked = false
+    private val locationSettingsLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { }
     private var sensorHfovDeg = AppConfig.DEFAULT_HFOV_DEG // horizontal FOV of the full sensor image (portrait short side)
 
     /** Camera zoom state -> zoom bar and ViewModel. */
@@ -186,12 +194,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Asks (once per launch) to turn on location with the best accuracy; the dialog appears only when it is needed. */
+    private fun checkLocationSettings() {
+        if (locationSettingsAsked) return
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, AppConfig.LOCATION_INTERVAL_MS).build()
+        val settings = LocationSettingsRequest.Builder().addLocationRequest(request).build()
+        LocationServices.getSettingsClient(this).checkLocationSettings(settings).addOnFailureListener { e ->
+            if (e is ResolvableApiException && !locationSettingsAsked) {
+                locationSettingsAsked = true
+                try {
+                    locationSettingsLauncher.launch(IntentSenderRequest.Builder(e.resolution).build())
+                } catch (ex: Exception) {
+                    Log.w(TAG, "Location settings dialog failed", ex)
+                }
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         vm.startUpdateCheckIfDue() // every launch (and a return after a while) checks for a newer version, even before permissions are granted
         vm.orientationProvider.start()
         vm.pressureProvider.start()
         if (hasCorePermissions()) {
+            checkLocationSettings()
             vm.startLocation()
             vm.startStartupChecks() // compass health; runs once per process
         }

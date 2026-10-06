@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.19
+// Version 1.20
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -111,7 +111,10 @@ object AppConfig {
     const val LANGUAGE_DEFAULT_TAG = LANGUAGE_HEBREW_TAG // used until the user picks a language in Settings
 
     // ===== Parameters: sensors =====
-    const val AZIMUTH_SMOOTHING_ALPHA = 0.10f // low-pass factor, 0..1 (lower = smoother; was 0.15)
+    const val SMOOTH_ALPHA_MIN = 0.04         // heading / elevation smoothing for tiny changes (hand tremor): heavy
+    const val SMOOTH_ALPHA_MAX = 0.60         // ... and for real turns: almost none
+    const val SMOOTH_FAST_DEG = 5.0           // deg, a change of this size or more uses SMOOTH_ALPHA_MAX
+    const val HEADING_MAG_TAU_S = 3.0         // s, time constant with which the gyroscope heading follows the magnetic heading
     const val UI_UPDATE_INTERVAL_MS = 200L    // ms, overlay refresh throttle (was 100: slower, so small shakes change less)
     const val SELECTION_HOLD_MS = 600L        // ms, a challenger must stay clearly better this long to replace the shown target
     const val SELECTION_LOST_MS = 400L        // ms, a target that just left the crosshair stays on the screen this long
@@ -125,8 +128,14 @@ object AppConfig {
     const val COMPASS_FIELD_SMOOTHING_ALPHA = 0.2f // low-pass factor of the field strength
 
     // ===== Parameters: location =====
-    const val LOCATION_INTERVAL_MS = 2_000L
-    const val LOCATION_MIN_INTERVAL_MS = 1_000L
+    const val LOCATION_INTERVAL_MS = 1_000L   // fused provider interval (was 2 s; the position filter weights every fix)
+    const val LOCATION_LAST_FIX_MAX_AGE_MS = 120_000L // a cached last location older than this is not used as the first fix
+    const val FILTER_MIN_ACCURACY_M = 3.0     // m, no fix is trusted (and no accuracy reported) better than this
+    const val FILTER_MIN_SPEED_MPS = 0.5      // m/s, assumed minimum movement of the observer between fixes
+    const val FILTER_MAX_GAP_S = 60.0         // s, longer gaps between fixes count as this long
+    const val PRIVATE_HERE_MIN_M = 100.0      // m, a private point this close counts as "the current place" (grows with poor accuracy)
+    const val PRIVATE_HERE_MAX_M = 400.0      // m, upper limit of that radius
+    const val LOCATION_MIN_INTERVAL_MS = 500L
 
     // ===== Parameters: network =====
     const val HTTP_CONNECT_TIMEOUT_MS = 10_000
@@ -145,7 +154,10 @@ object AppConfig {
         require(EYE_HEIGHT_M in 0.0..OBSERVER_HEIGHT_MAX_M) { "EYE_HEIGHT_M out of range" }
         require(DEM_SAMPLE_SPACING_M > 0 && EYE_HEIGHT_M >= 0) { "Invalid LOS parameters" }
         require(REFRACTION_K in 0.0..0.5) { "REFRACTION_K out of physical range" }
-        require(AZIMUTH_SMOOTHING_ALPHA in 0.01f..1f) { "AZIMUTH_SMOOTHING_ALPHA out of range" }
+        require(SMOOTH_ALPHA_MIN in 0.0..1.0 && SMOOTH_ALPHA_MAX in SMOOTH_ALPHA_MIN..1.0 && SMOOTH_FAST_DEG > 0) { "Invalid smoothing parameters" }
+        require(HEADING_MAG_TAU_S > 0) { "HEADING_MAG_TAU_S must be positive" }
+        require(FILTER_MIN_ACCURACY_M > 0 && FILTER_MIN_SPEED_MPS >= 0 && FILTER_MAX_GAP_S > 0) { "Invalid position filter parameters" }
+        require(PRIVATE_HERE_MIN_M in 0.0..PRIVATE_HERE_MAX_M) { "Invalid private-point radius" }
         require(TILE_DOWNLOAD_PARALLELISM in 1..8) { "TILE_DOWNLOAD_PARALLELISM out of range" }
         require(CROSSHAIR_RADIUS_RATIO in 0.01..0.5 && CROSSHAIR_SCALE_MAX >= 1.0 && CROSSHAIR_ZOOM_EXPONENT >= 0.0) {
             "Invalid crosshair parameters"

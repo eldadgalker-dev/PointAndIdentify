@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.18
+// Version 1.19
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -128,7 +128,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var raised = true
 
     // Current city: the nearest settlement (with hysteresis, so GPS jitter does not make it jump); shown when the camera points down.
-    private val cityEval = MutableStateFlow<List<TargetEvaluation>>(emptyList()) // settlements within the search radius
+    private class CityData(val settlements: List<TargetEvaluation>, val here: TargetEvaluation?)
+
+    // settlements within the search radius, and the private point (for example Home) the observer stands at, if any
+    private val cityEval = MutableStateFlow(CityData(emptyList(), null))
     private var cityHeld: TargetEvaluation? = null       // the settlement shown now (CityPicker keeps it against shakes)
     private val selectionStabilizer = SelectionStabilizer()
     private var lookingDown = false
@@ -137,7 +140,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** One sensor/data snapshot for the throttled UI update. */
     private class Tick(
         val o: Orientation, val evals: List<TargetEvaluation>, val zoom: Double,
-        val find: TargetEvaluation?, val city: List<TargetEvaluation>
+        val find: TargetEvaluation?, val city: CityData
     )
 
     private val _ui = MutableStateFlow(UiState())
@@ -212,8 +215,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Pointing down (phone on a table): the compass direction means nothing, so only the current city is shown.
                     lookingDown = LookingDown.isLookingDown(lookingDown, o.cameraElevationDeg)
                     // The current place when looking down = the settlement nearest in azimuth (not nearest overall).
-                    val city = CityPicker.pick(tick.city, o.trueAzimuthDeg, cityHeld)
-                    cityHeld = city
+                    // A saved place the observer stands at (Home) is the current place, whatever the azimuth.
+                    val city = tick.city.here
+                        ?: CityPicker.pick(tick.city.settlements, o.trueAzimuthDeg, cityHeld).also { cityHeld = it }
                     // Where the camera axis meets the ground (terrain ray cast from the real eye altitude).
                     val fixNow = _ui.value.fix
                     val eyeNow = lastEyeAlt
@@ -226,10 +230,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         aim > AppConfig.CITY_AIM_EXIT_M -> false
                         else -> aimNear
                     }
-                    // Looking at the ground nearby shows the current place, unless a visible target is aimed at.
-                    val yields = CityMode.yieldsToTarget(selection.best, aim)
-                    val cityMode = CityMode.active(lookingDown, aimNear, aim, o.cameraElevationDeg) && !yields && city != null
-                    if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val find = tick.find?.let { e ->
                         FindState(
@@ -237,6 +237,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             FindGuidance.guide(e.bearingDeg, e.elevationAngleDeg, o.trueAzimuthDeg, o.cameraElevationDeg, circleDeg)
                         )
                     }
+                    // A place being searched (Find) that is inside the crosshair is the answer, visible or not.
+                    val findHere = tick.find != null && find?.guide?.inside == true
+                    if (findHere && tick.find != null && find != null) {
+                        selection = Selection(tick.find, find.guide.offsetDeg, listOf(Candidate(tick.find, find.guide.offsetDeg, 0.0)))
+                    }
+                    // Looking at the ground nearby shows the current place, unless a visible target is aimed at.
+                    val yields = CityMode.yieldsToTarget(selection.best, aim)
+                    val cityMode = !findHere && CityMode.active(lookingDown, aimNear, aim, o.cameraElevationDeg) && !yields && city != null
+                    if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     _ui.value = _ui.value.copy(
                         raised = raised,
                         cityMode = cityMode,
@@ -420,18 +429,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Result of one visibility pass. */
     private class Pass(
-        val eyeAlt: Double?, val evals: List<TargetEvaluation>, val found: TargetEvaluation?, val city: List<TargetEvaluation>
+        val eyeAlt: Double?, val evals: List<TargetEvaluation>, val found: TargetEvaluation?, val city: CityData
     )
 
     /**
-     * The settlements within CITY_SEARCH_RADIUS_M, each evaluated from the observer; CityPicker chooses the one shown
-     * when the camera points down (nearest in azimuth), so this pass does not depend on the camera direction.
+     * The settlements within CITY_SEARCH_RADIUS_M, each evaluated from the observer (CityPicker chooses the one shown when
+     * the camera points down), and the nearest private point within the "here" radius, which then is the current place.
+     * The radius grows with a poor position accuracy, so the place is still recognised indoors.
      */
-    private suspend fun evaluateCity(fix: ObserverFix, eyeAlt: Double?): List<TargetEvaluation> {
-        val near = targets.within(fix.lat, fix.lon, 0.0, AppConfig.CITY_SEARCH_RADIUS_M)
-            .filter { it.targetKind == TargetKind.SETTLEMENT }
-        return near.map { t ->
-            currentCoroutineContext().ensureActive()
+    private suspend fun evaluateCity(fix: ObserverFix, eyeAlt: Double?): CityData {
+        fun evaluatePlace(t: TargetEntity): TargetEvaluation =
             if (eyeAlt != null) {
                 losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, t)
             } else {
@@ -440,7 +447,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     GeoMath.distanceM(fix.lat, fix.lon, t.latitude, t.longitude), Visibility.UNKNOWN
                 )
             }
+
+        val near = targets.within(fix.lat, fix.lon, 0.0, AppConfig.CITY_SEARCH_RADIUS_M)
+            .filter { it.targetKind == TargetKind.SETTLEMENT }
+        val settlements = near.map { t ->
+            currentCoroutineContext().ensureActive()
+            evaluatePlace(t)
         }
+        val hereRadiusM = (2.0 * fix.horizontalAccuracyM).coerceIn(AppConfig.PRIVATE_HERE_MIN_M, AppConfig.PRIVATE_HERE_MAX_M)
+        val here = targets.privatePoints.all()
+            .map { TargetEntity(id = 0, name = it.name, kind = TargetKind.PRIVATE.code, latitude = it.lat, longitude = it.lon, altitudeM = null, heightM = null) }
+            .map { it to GeoMath.distanceM(fix.lat, fix.lon, it.latitude, it.longitude) }
+            .filter { it.second <= hereRadiusM }
+            .minByOrNull { it.second }
+            ?.let { evaluatePlace(it.first) }
+        return CityData(settlements, here)
     }
 
     /**

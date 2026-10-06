@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.sensors
 
 import android.content.Context
@@ -11,6 +11,8 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.galker.pointandidentify.config.AppConfig
+import com.galker.pointandidentify.domain.AdaptiveAngleSmoother
+import com.galker.pointandidentify.domain.HeadingFusion
 import com.galker.pointandidentify.geo.GeoMath
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,17 +39,20 @@ class OrientationProvider(context: Context) : SensorEventListener {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val rotationSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val magneticSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD)
+    // Gyroscope-only rotation vector: smooth and fast, no magnetic disturbance; null on phones without a gyroscope.
+    private val gameSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
 
     private val rotation = FloatArray(9)
     private val remapped = FloatArray(9)
     private val angles = FloatArray(3)
 
-    // Low-pass filter on the unit vector (sin, cos) avoids the 359 -> 0 wrap jump.
-    private var smoothSin = 0.0
-    private var smoothCos = 1.0
-    private var smoothElevation = 0.0
-    private var initialized = false
-    private var initializedElevation = false
+    private val gameRotation = FloatArray(9)
+    private val fusion = HeadingFusion()
+    private val azimuthSmoother = AdaptiveAngleSmoother(circular = true)
+    private val elevationSmoother = AdaptiveAngleSmoother(circular = false)
+    @Volatile
+    private var lastMagTrueAz: Double? = null // latest azimuth of the magnetic rotation vector, true north
+    private var lastGameTimestampNs = 0L
 
     @Volatile
     private var declinationDeg = 0.0
@@ -64,14 +69,18 @@ class OrientationProvider(context: Context) : SensorEventListener {
 
     fun start() {
         rotationSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        gameSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
         // Magnetometer is registered only to receive calibration accuracy callbacks.
         magneticSensor?.let { sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
     }
 
     fun stop() {
         sensorManager.unregisterListener(this)
-        initialized = false
-        initializedElevation = false
+        azimuthSmoother.reset()
+        elevationSmoother.reset()
+        fusion.reset()
+        lastGameTimestampNs = 0L
+        lastMagTrueAz = null
         fieldUt = null // stale after a pause: restart the smoothing from a fresh sample
     }
 
@@ -91,40 +100,49 @@ class OrientationProvider(context: Context) : SensorEventListener {
             fieldUt = if (prev == null) magnitude else prev + AppConfig.COMPASS_FIELD_SMOOTHING_ALPHA * (magnitude - prev)
             return
         }
-        if (event.sensor.type != Sensor.TYPE_ROTATION_VECTOR) return
+        when (event.sensor.type) {
+            Sensor.TYPE_ROTATION_VECTOR -> {
+                SensorManager.getRotationMatrixFromVector(rotation, event.values)
+                val trueMagAz = GeoMath.normalizeDeg(cameraAzimuthDeg(rotation) + declinationDeg)
+                lastMagTrueAz = trueMagAz
+                // Without a gyroscope-only sensor the magnetic azimuth is used directly (with the adaptive smoothing).
+                if (gameSensor == null) publish(trueMagAz, cameraElevationDeg(rotation))
+            }
+            Sensor.TYPE_GAME_ROTATION_VECTOR -> {
+                SensorManager.getRotationMatrixFromVector(gameRotation, event.values)
+                val dtSeconds = if (lastGameTimestampNs == 0L) 0.0 else (event.timestamp - lastGameTimestampNs) / 1e9
+                lastGameTimestampNs = event.timestamp
+                val fused = fusion.fuse(cameraAzimuthDeg(gameRotation), lastMagTrueAz, magneticReadingTrusted(), dtSeconds)
+                publish(fused, cameraElevationDeg(gameRotation))
+            }
+        }
+    }
 
-        SensorManager.getRotationMatrixFromVector(rotation, event.values)
-        SensorManager.remapCoordinateSystem(rotation, SensorManager.AXIS_X, SensorManager.AXIS_Z, remapped)
+    /** Azimuth of the back-camera axis for an upright phone (remapped X, Z), degrees clockwise from the sensor's north. */
+    private fun cameraAzimuthDeg(matrix: FloatArray): Double {
+        SensorManager.remapCoordinateSystem(matrix, SensorManager.AXIS_X, SensorManager.AXIS_Z, remapped)
         SensorManager.getOrientation(remapped, angles)
+        return Math.toDegrees(angles[0].toDouble())
+    }
 
-        val magneticAz = Math.toDegrees(angles[0].toDouble())
-        val trueAz = GeoMath.normalizeDeg(magneticAz + declinationDeg)
-        val rad = Math.toRadians(trueAz)
+    /**
+     * Camera axis = device -Z. With world = R * device (row-major R), its world-up component is -R[8];
+     * elevation = asin(-R[8]). Uses the un-remapped matrix, so no remap sign ambiguity.
+     */
+    private fun cameraElevationDeg(matrix: FloatArray): Double =
+        Math.toDegrees(asin((-matrix[8]).toDouble().coerceIn(-1.0, 1.0)))
 
-        if (!initialized) {
-            smoothSin = sin(rad)
-            smoothCos = cos(rad)
-            initialized = true
-        } else {
-            val a = AppConfig.AZIMUTH_SMOOTHING_ALPHA.toDouble()
-            smoothSin += a * (sin(rad) - smoothSin)
-            smoothCos += a * (cos(rad) - smoothCos)
-        }
-        val filtered = GeoMath.normalizeDeg(Math.toDegrees(atan2(smoothSin, smoothCos)))
+    /** The magnetic heading may correct the gyroscope heading only while the field is Earth-like and the sensor calibrated. */
+    private fun magneticReadingTrusted(): Boolean {
+        val field = fieldUt ?: return false
+        return field in AppConfig.COMPASS_FIELD_MIN_UT..AppConfig.COMPASS_FIELD_MAX_UT &&
+            magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_LOW
+    }
 
-        // Camera axis = device -Z. With world = R * device (row-major R), its world-up component
-        // is -R[8]; elevation = asin(-R[8]). Uses the un-remapped matrix, so no remap sign ambiguity.
-        val elevation = Math.toDegrees(asin((-rotation[8]).toDouble().coerceIn(-1.0, 1.0)))
-        smoothElevation = if (initializedElevation) {
-            smoothElevation + AppConfig.AZIMUTH_SMOOTHING_ALPHA * (elevation - smoothElevation)
-        } else {
-            initializedElevation = true
-            elevation
-        }
-
+    private fun publish(azimuthDeg: Double, elevationDeg: Double) {
         _orientation.value = Orientation(
-            trueAzimuthDeg = filtered,
-            cameraElevationDeg = smoothElevation,
+            trueAzimuthDeg = azimuthSmoother.update(GeoMath.normalizeDeg(azimuthDeg)),
+            cameraElevationDeg = elevationSmoother.update(elevationDeg),
             calibrated = magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM,
             fieldStrengthUt = fieldUt
         )
