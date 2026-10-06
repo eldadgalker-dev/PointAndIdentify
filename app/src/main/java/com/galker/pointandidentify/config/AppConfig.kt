@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.18
+// Version 1.19
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -93,7 +93,8 @@ object AppConfig {
     const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
     const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
     const val CITY_SEARCH_RADIUS_M = 15_000.0 // m, the current city is the nearest settlement within this range
-    const val CITY_SWITCH_MARGIN_M = 500.0    // m, another settlement replaces the current one only when this much nearer
+    const val CITY_AZIMUTH_TOL_DEG = 30.0     // deg, the current place is the settlement nearest in azimuth, if within this of the camera direction
+    const val CITY_AZIMUTH_SWITCH_MARGIN_DEG = 10.0 // deg, another settlement replaces the current one only when this much closer in azimuth
 
     // ===== Parameters: find (free-text place search) =====
     const val FIND_MAX_RESULTS = 10           // places listed for the user to choose from
@@ -110,8 +111,11 @@ object AppConfig {
     const val LANGUAGE_DEFAULT_TAG = LANGUAGE_HEBREW_TAG // used until the user picks a language in Settings
 
     // ===== Parameters: sensors =====
-    const val AZIMUTH_SMOOTHING_ALPHA = 0.15f // low-pass factor, 0..1 (lower = smoother)
-    const val UI_UPDATE_INTERVAL_MS = 100L    // ms, overlay refresh throttle
+    const val AZIMUTH_SMOOTHING_ALPHA = 0.10f // low-pass factor, 0..1 (lower = smoother; was 0.15)
+    const val UI_UPDATE_INTERVAL_MS = 200L    // ms, overlay refresh throttle (was 100: slower, so small shakes change less)
+    const val SELECTION_HOLD_MS = 600L        // ms, a challenger must stay clearly better this long to replace the shown target
+    const val SELECTION_LOST_MS = 400L        // ms, a target that just left the crosshair stays on the screen this long
+    const val SELECTION_SWITCH_RATIO = 0.6    // a challenger replaces the shown target only with a score below this fraction of its score
 
     // ===== Parameters: compass health check (runs once at start) =====
     const val COMPASS_FIELD_MIN_UT = 25.0     // uT, below this the magnetometer reads too weak a field
@@ -162,7 +166,9 @@ object AppConfig {
         }
         require(CITY_BLIND_BELOW_DEG < CITY_MODE_BELOW_DEG && CITY_YIELD_MARGIN_M >= 0) { "Invalid city-mode override parameters" }
         require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
-        require(CITY_SEARCH_RADIUS_M > 0 && CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city parameters" }
+        require(SELECTION_HOLD_MS >= 0 && SELECTION_LOST_MS >= 0 && SELECTION_SWITCH_RATIO in 0.0..1.0) { "Invalid selection stability parameters" }
+        require(CITY_AZIMUTH_TOL_DEG > 0 && CITY_AZIMUTH_SWITCH_MARGIN_DEG >= 0) { "Invalid current-city azimuth parameters" }
+        require(CITY_SEARCH_RADIUS_M > 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }

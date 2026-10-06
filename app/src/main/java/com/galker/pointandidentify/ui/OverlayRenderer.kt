@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.10
+// Version 1.11
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -17,6 +17,7 @@ import android.text.TextPaint
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.domain.CrosshairWindow
 import kotlin.math.cos
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
@@ -40,7 +41,10 @@ data class OverlayContent(
     val northLabel: String = "N",
     val findArrowRad: Float? = null,         // Find: screen direction to turn the camera (0 = right, pi/2 = up); null = no Find
     val findInside: Boolean = false,         // Find: the place is already inside the crosshair circle
-    val findLabel: String = ""               // Find: name, range and azimuth, shown under the target title
+    val findLabel: String = "",              // Find: name, range and azimuth, shown under the target title
+    val findDeltaAzDeg: Double? = null,      // Find: horizontal offset of the place from the camera axis (right = positive)
+    val findDeltaElDeg: Double? = null,      // Find: vertical offset of the place from the camera axis (up = positive)
+    val hfovDeg: Double = 60.0               // camera horizontal field of view at zoom 1 (places the Find dot on the screen)
 )
 
 /**
@@ -85,6 +89,7 @@ class OverlayRenderer {
     private val findArrowLengthRatio = 0.09f
     private val findArrowHalfWidthRatio = 0.045f
     private val findTextRatio = 0.04f
+    private val findDotRadiusRatio = 0.012f // radius of the red Find dot
     private val compassRadiusRatio = 0.084f // photo compass
     private val compassGapRatio = 0.01f
     private val azimuthTextRatio = 0.05f
@@ -128,7 +133,13 @@ class OverlayRenderer {
         canvas.drawLine(cx, cy - r - arm, cx, cy - r * 0.4f, crosshairPaint)
         canvas.drawLine(cx, cy + r * 0.4f, cx, cy + r + arm, crosshairPaint)
 
-        content.findArrowRad?.let { drawFindMarker(canvas, cx, cy, r + arm, unit, it, content.findInside) }
+        // The Find dot sits exactly on the place when it is on the screen; the arrow only points the way when it is not.
+        val findDot = if (content.findDeltaAzDeg != null && content.findDeltaElDeg != null) {
+            FindProjection.screenOffsetPx(
+                content.findDeltaAzDeg, content.findDeltaElDeg, content.hfovDeg, content.zoomRatio, width, height
+            )?.takeIf { abs(it.first) <= width / 2f && abs(it.second) <= height / 2f }
+        } else null
+        content.findArrowRad?.let { if (findDot == null || content.findInside) drawFindMarker(canvas, cx, cy, r + arm, unit, it, content.findInside) }
 
         primaryPaint.color = if (content.visible) Color.YELLOW else Color.rgb(255, 160, 120)
         primaryPaint.isFakeBoldText = true
@@ -199,6 +210,8 @@ class OverlayRenderer {
             }
         }
 
+        findDot?.let { drawFindDot(canvas, cx + it.first, cy + it.second, unit) }
+
         if (content.drawCompass) drawPhotoCompass(canvas, content, unit, margin, dataTop)
 
         // Stable top for views that sit above the block: computed from a full block, so it does not move
@@ -206,6 +219,17 @@ class OverlayRenderer {
         val lineHeight = infoPaint.fontMetrics.let { it.descent - it.ascent }
         val stableTotal = fullDataLines * lineHeight + 2f * gap * (fullDataGroups - 1)
         return min(dataTop, bottomEdge - stableTotal - margin * 0.5f)
+    }
+
+    private val findDotFillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(255, 23, 23); style = Paint.Style.FILL }
+    private val findDotRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.STROKE }
+
+    /** Small red dot exactly on the searched place, so that it can be steered into the middle of the crosshair. */
+    private fun drawFindDot(canvas: Canvas, x: Float, y: Float, unit: Float) {
+        val radius = unit * findDotRadiusRatio
+        findDotRingPaint.strokeWidth = unit * 0.004f
+        canvas.drawCircle(x, y, radius, findDotFillPaint)
+        canvas.drawCircle(x, y, radius, findDotRingPaint)
     }
 
     private val compassPainter = CompassPainter()

@@ -1,12 +1,15 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.tan
 
 /** How the phone is held, with hysteresis so the mode does not flicker around the threshold. */
 object PhonePose {
@@ -66,6 +69,28 @@ data class FindGuide(
     val screenAngleRad: Double,
     val inside: Boolean
 )
+
+/** Where a direction offset from the camera axis appears on the screen (used for the Find dot). */
+object FindProjection {
+
+    /**
+     * Pixel offset (right, down) from the screen centre of a place deltaAzimuthDeg to the right and deltaElevationDeg above
+     * the camera axis; null when it is behind the camera. The preview (aspect PREVIEW_ASPECT, short side = hfovDeg) is scaled
+     * to fill the screen, so one tangent unit = max(height, width / aspect) * aspect / (2 tan(hfov / 2)) * zoom pixels.
+     */
+    fun screenOffsetPx(
+        deltaAzimuthDeg: Double, deltaElevationDeg: Double, hfovDeg: Double, zoomRatio: Double, widthPx: Int, heightPx: Int
+    ): Pair<Float, Float>? {
+        if (abs(deltaAzimuthDeg) >= MAX_ANGLE_DEG || abs(deltaElevationDeg) >= MAX_ANGLE_DEG) return null
+        val filled = max(heightPx.toDouble(), widthPx / AppConfig.PREVIEW_ASPECT)
+        val pxPerTan = filled * AppConfig.PREVIEW_ASPECT / (2.0 * tan(Math.toRadians(hfovDeg) / 2.0)) * zoomRatio
+        val x = pxPerTan * tan(Math.toRadians(deltaAzimuthDeg))
+        val y = -pxPerTan * tan(Math.toRadians(deltaElevationDeg))
+        return x.toFloat() to y.toFloat()
+    }
+
+    private const val MAX_ANGLE_DEG = 80.0 // beyond this the flat projection is meaningless
+}
 
 object FindGuidance {
 

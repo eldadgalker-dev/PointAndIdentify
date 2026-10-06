@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.19
+// Version 1.20
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -912,6 +912,9 @@ class MainActivity : AppCompatActivity() {
             infoLines = infoLines(state), zoomRatio = state.zoomRatio, rtl = rtl,
             findArrowRad = find?.guide?.screenAngleRad?.toFloat(),
             findInside = find?.guide?.inside ?: false,
+            findDeltaAzDeg = find?.guide?.deltaAzimuthDeg,
+            findDeltaElDeg = find?.guide?.deltaElevationDeg,
+            hfovDeg = vm.hfovDeg,
             findLabel = find?.let {
                 getString(R.string.find_label, it.name, it.distanceM / 1000.0, it.bearingDeg.roundToInt().mod(360)) +
                     if (it.guide.inside) " " + getString(R.string.find_in_crosshair) else ""
@@ -1026,7 +1029,7 @@ class MainActivity : AppCompatActivity() {
         // The saved photo shows the compass too (on screen it is a separate view).
         return live.copy(
             primary = primary, footer = footer,
-            findArrowRad = null, findInside = false, findLabel = "", // the Find guide is a live aid, not part of the photo
+            findArrowRad = null, findInside = false, findLabel = "", findDeltaAzDeg = null, findDeltaElDeg = null, // the Find guide is a live aid, not part of the photo
             drawCompass = true,
             compassAzimuthDeg = state.azimuthDeg?.toFloat(),
             compassAzimuthText = state.azimuthDeg?.let { getString(R.string.azimuth_value, it.roundToInt().mod(360)) } ?: "",
