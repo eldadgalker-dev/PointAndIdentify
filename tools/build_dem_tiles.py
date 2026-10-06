@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.3
+# Version 2.4
 """Cuts SRTM1 .hgt files into 0.1 x 0.1 degree gzip tiles for the PointAndIdentify app, then rebuilds the manifest.
 
 Conventions
@@ -12,8 +12,9 @@ Conventions
                payload = 361 x 361 int16 little-endian, row 0 = north edge, col 0 = west edge
   Mask       : with tools/anchors.json (from build_targets.py), only tiles whose centre lies within
                buffer_km + TILE_HALF_DIAG_KM of an anchor are processed (core + border strip only)
-  Sea        : processed sub-tiles whose samples all lie between -SEA_FLOOR_M and 0 m go to data/tiles/sea.json
-               (app uses 0 m). A tile entirely below sea level but deeper (Dead Sea, -430 m) is land and is stored.
+  Sea        : processed sub-tiles with no sample above 0 m go to data/tiles/sea.json (app uses 0 m). The source
+               holds sea-floor depths (down to -1500 m), so depth alone cannot tell sea from land. Exception: tiles
+               inside BELOW_SEA_LEVEL_LAND_BOXES (Dead Sea, Arava, Jordan valley, up to -450 m) are land and are stored.
                Masked tiles without an HGT file are reported and left unknown, unless --missing-as-sea; even then a
                missing tile that borders land higher than SEA_EDGE_MAX_M stays unknown (terrain cannot just stop)
   Determinism: gzip mtime = 0, so unchanged input yields byte-identical files (no git churn)
@@ -44,7 +45,10 @@ DEFAULT_BBOX = (28.9, 33.6, 34.0, 36.7)  # deg (min_lat, min_lon, max_lat, max_l
 DEFAULT_BUFFER_KM = 50.0    # km, must match AppConfig.FETCH_RADIUS_M / 1000
 TILE_HALF_DIAG_KM = 8.0     # km, half-diagonal of a 0.1 deg tile at ~30N is ~7.3 km, rounded up
 KM_PER_DEG_LAT = 111.32
-SEA_FLOOR_M = 5             # m, open sea reads 0 m in SRTM; a tile reaching deeper than this below zero is land (Dead Sea)
+SEA_FLOOR_M = 5             # m, inside a below-sea-level land box, a tile reaching deeper than this below zero is land
+# Land that lies below sea level, as boxes (min_lat, min_lon, max_lat, max_lon) in degrees; ESTIMATE from the sea-floor
+# depths and positions of the tiles that were wrongly classified as sea (all east of 35.2 E, none on the coast).
+BELOW_SEA_LEVEL_LAND_BOXES = ((30.5, 35.2, 32.5, 35.7),)
 SEA_EDGE_MAX_M = 10         # m, a missing tile cannot be sea when the shared edge of a neighbour is higher than this
 
 HGT_NAME = re.compile(r"^([NS])(\d{2})([EW])(\d{3})\.hgt$", re.IGNORECASE)
@@ -118,9 +122,18 @@ def wanted_tiles(bbox, anchors, buffer_km) -> set:
     return kept
 
 
-def is_open_sea(sub) -> bool:
-    """True for a tile that is flat open sea: every sample between -SEA_FLOOR_M and 0 m."""
-    return bool(sub.max() <= 0 and sub.min() >= -SEA_FLOOR_M)
+def in_below_sea_level_land(lat_idx: int, lon_idx: int) -> bool:
+    """True when the centre of the tile lies inside a known below-sea-level land area (Dead Sea and its valley)."""
+    lat = (lat_idx + 0.5) / SUB_TILES
+    lon = (lon_idx + 0.5) / SUB_TILES
+    return any(b[0] <= lat <= b[2] and b[1] <= lon <= b[3] for b in BELOW_SEA_LEVEL_LAND_BOXES)
+
+
+def is_open_sea(sub, lat_idx: int, lon_idx: int) -> bool:
+    """True for a tile without any sample above 0 m, unless it lies in a below-sea-level land area and reaches below -SEA_FLOOR_M."""
+    if sub.max() > 0:
+        return False
+    return not (in_below_sea_level_land(lat_idx, lon_idx) and sub.min() < -SEA_FLOOR_M)
 
 
 def edge_maxima(sub) -> dict:
@@ -153,7 +166,7 @@ def cut(hgt_path: Path, out_dir: Path, wanted: set, sea: set, edges: dict) -> tu
         r0 = (SUB_TILES - 1 - i) * SUB_STEP
         c0 = j * SUB_STEP
         sub = grid[r0:r0 + TILE_SAMPLES, c0:c0 + TILE_SAMPLES]
-        if is_open_sea(sub):
+        if is_open_sea(sub, lat_idx, lon_idx):
             sea.add(f"{lat_idx}_{lon_idx}")
             sea_count += 1
             continue

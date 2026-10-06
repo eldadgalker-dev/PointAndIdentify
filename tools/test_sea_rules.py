@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 1.0
+# Version 1.1
 """Self-check of the sea classification rules of build_dem_tiles.py. Run: python tools/test_sea_rules.py"""
 
 import sys
@@ -28,10 +28,13 @@ def check(name, condition):
 
 check.failed = False
 
-check("open sea (all 0 m) is sea", b.is_open_sea(tile(0)))
-check("sea with 3 m noise below zero is sea", b.is_open_sea(tile(-3)))
-check("Dead Sea (-430 m) is land, not sea", not b.is_open_sea(tile(-430)))
-check("tile with land above 0 m is land", not b.is_open_sea(np.where(np.arange(N * N).reshape(N, N) == 5, 12, 0).astype(np.int16)))
+check("open sea (all 0 m) is sea", b.is_open_sea(tile(0), 320, 340))
+check("sea floor (-871 m) in the Mediterranean is sea", b.is_open_sea(tile(-871), 320, 341))
+check("sea floor off Lebanon (-1080 m, 33.7 N 35.3 E) is sea", b.is_open_sea(tile(-1080), 337, 353))
+check("Dead Sea (-430 m, 31.2 N 35.4 E) is land", not b.is_open_sea(tile(-430), 312, 354))
+check("Jordan valley (-300 m, 32.4 N 35.5 E) is land", not b.is_open_sea(tile(-300), 324, 355))
+check("flat 0 m tile inside the Dead Sea box is still sea-like (no depth)", b.is_open_sea(tile(-2), 312, 354))
+check("tile with land above 0 m is land", not b.is_open_sea(np.where(np.arange(N * N).reshape(N, N) == 5, 12, 0).astype(np.int16), 320, 340))
 
 grid = tile(0)
 grid[0, 3] = 50
