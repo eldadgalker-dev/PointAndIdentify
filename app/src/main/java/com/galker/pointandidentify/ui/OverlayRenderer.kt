@@ -16,6 +16,7 @@ import android.text.TextDirectionHeuristics
 import android.text.TextPaint
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.domain.CrosshairWindow
+import com.galker.pointandidentify.domain.FindProjection
 import kotlin.math.cos
 import kotlin.math.abs
 import kotlin.math.max
