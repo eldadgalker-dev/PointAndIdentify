@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -21,6 +21,23 @@ object PhonePose {
         cameraElevationDeg < AppConfig.FLAT_BELOW_DEG -> false
         else -> previouslyRaised
     }
+}
+
+/**
+ * When the current-city display replaces the normal target selection.
+ * The camera axis, ray-cast against the terrain, decides: ground met near the observer = the user looks at the place
+ * he stands in. The plain "below the horizon" rule is geometry-blind (from a mountain, 8 degrees down is a settlement
+ * five kilometres away), so it only acts when the ray found no ground at all and the camera points steeply down.
+ */
+object CityMode {
+
+    fun active(lookingDown: Boolean, aimNear: Boolean, aimDistanceM: Double?, cameraElevationDeg: Double): Boolean =
+        aimNear || (lookingDown && aimDistanceM == null && cameraElevationDeg < AppConfig.CITY_BLIND_BELOW_DEG)
+
+    /** A visible target inside the crosshair that is not farther than the aimed ground point (plus a margin) wins. */
+    fun yieldsToTarget(best: TargetEvaluation?, aimDistanceM: Double?): Boolean =
+        best != null && best.visibility == Visibility.VISIBLE &&
+            (aimDistanceM == null || best.distanceM <= aimDistanceM + AppConfig.CITY_YIELD_MARGIN_M)
 }
 
 /** Camera pointing well below the horizon (the street below, or a phone lying on a table). */

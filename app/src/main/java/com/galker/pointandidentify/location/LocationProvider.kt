@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.location
 
 import android.annotation.SuppressLint
@@ -23,7 +23,8 @@ data class ObserverFix(
     val lon: Double,
     val mslAltitudeM: Double?,     // null when the device provides no usable altitude
     val horizontalAccuracyM: Float,
-    val verticalAccuracyM: Float? = null // GPS vertical accuracy (68 %), null when the device reports none
+    val verticalAccuracyM: Float? = null, // GPS vertical accuracy (68 %), null when the device reports none
+    val altitudeIsEstimated: Boolean = false // true when mslAltitudeM came from ellipsoidal altitude minus the fixed geoid estimate
 )
 
 /** Continuous fused location updates; converts altitude to MSL where possible. */
@@ -57,15 +58,17 @@ class LocationProvider(context: Context) {
     private fun toFix(loc: Location): ObserverFix {
         // GPS altitude is ellipsoidal (WGS84). API 34+ may expose an MSL value directly;
         // otherwise subtract an estimated geoid undulation (used only when the DEM is unavailable).
+        val platformMsl: Double? =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && loc.hasMslAltitude()) loc.mslAltitudeMeters else null
         val msl: Double? = when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && loc.hasMslAltitude() ->
-                loc.mslAltitudeMeters
+            platformMsl != null -> platformMsl
             loc.hasAltitude() -> loc.altitude - AppConfig.GEOID_UNDULATION_FALLBACK_M
             else -> null
         }
         return ObserverFix(
             loc.latitude, loc.longitude, msl, loc.accuracy,
-            if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters else null
+            if (loc.hasVerticalAccuracy()) loc.verticalAccuracyMeters else null,
+            altitudeIsEstimated = platformMsl == null && msl != null
         )
     }
 }

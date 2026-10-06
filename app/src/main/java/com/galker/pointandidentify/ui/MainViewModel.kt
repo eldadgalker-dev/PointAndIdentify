@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.16
+// Version 1.17
 package com.galker.pointandidentify.ui
 
 import android.app.Application
@@ -16,6 +16,7 @@ import com.galker.pointandidentify.domain.AimRay
 import com.galker.pointandidentify.domain.AltitudeEstimate
 import com.galker.pointandidentify.domain.BaroGpsFusion
 import com.galker.pointandidentify.domain.Candidate
+import com.galker.pointandidentify.domain.CityMode
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassReport
 import com.galker.pointandidentify.domain.CompassVerdict
@@ -53,6 +54,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.sqrt
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -215,7 +217,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         aim > AppConfig.CITY_AIM_EXIT_M -> false
                         else -> aimNear
                     }
-                    val cityMode = (lookingDown || aimNear) && city != null
+                    // Looking at the ground nearby shows the current place, unless a visible target is aimed at.
+                    val yields = CityMode.yieldsToTarget(selection.best, aim)
+                    val cityMode = CityMode.active(lookingDown, aimNear, aim, o.cameraElevationDeg) && !yields && city != null
                     if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val find = tick.find?.let { e ->
@@ -318,7 +322,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun updateAltitudeFusion(fix: ObserverFix) {
         val pressure = pressureProvider.pressureHpa.value ?: return
         val altitude = fix.mslAltitudeM ?: return
-        val sigma = fix.verticalAccuracyM?.toDouble() ?: AppConfig.ALT_GPS_SIGMA_DEFAULT_M
+        var sigma = fix.verticalAccuracyM?.toDouble() ?: AppConfig.ALT_GPS_SIGMA_DEFAULT_M
+        // The fixed geoid estimate has its own error: add it in quadrature, so the fused altitude never looks more certain than it is.
+        if (fix.altitudeIsEstimated) sigma = sqrt(sigma * sigma + AppConfig.GEOID_FALLBACK_SIGMA_M * AppConfig.GEOID_FALLBACK_SIGMA_M)
         altitudeFusion.update(SystemClock.elapsedRealtime(), altitude, sigma, pressure)
     }
 

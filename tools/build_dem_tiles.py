@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.2
+# Version 2.3
 """Cuts SRTM1 .hgt files into 0.1 x 0.1 degree gzip tiles for the PointAndIdentify app, then rebuilds the manifest.
 
 Conventions
@@ -12,8 +12,10 @@ Conventions
                payload = 361 x 361 int16 little-endian, row 0 = north edge, col 0 = west edge
   Mask       : with tools/anchors.json (from build_targets.py), only tiles whose centre lies within
                buffer_km + TILE_HALF_DIAG_KM of an anchor are processed (core + border strip only)
-  Sea        : processed sub-tiles with no sample above 0 m go to data/tiles/sea.json (app uses 0 m);
-               masked tiles without an HGT file are reported and left unknown, unless --missing-as-sea
+  Sea        : processed sub-tiles whose samples all lie between -SEA_FLOOR_M and 0 m go to data/tiles/sea.json
+               (app uses 0 m). A tile entirely below sea level but deeper (Dead Sea, -430 m) is land and is stored.
+               Masked tiles without an HGT file are reported and left unknown, unless --missing-as-sea; even then a
+               missing tile that borders land higher than SEA_EDGE_MAX_M stays unknown (terrain cannot just stop)
   Determinism: gzip mtime = 0, so unchanged input yields byte-identical files (no git churn)
 """
 
@@ -42,6 +44,8 @@ DEFAULT_BBOX = (28.9, 33.6, 34.0, 36.7)  # deg (min_lat, min_lon, max_lat, max_l
 DEFAULT_BUFFER_KM = 50.0    # km, must match AppConfig.FETCH_RADIUS_M / 1000
 TILE_HALF_DIAG_KM = 8.0     # km, half-diagonal of a 0.1 deg tile at ~30N is ~7.3 km, rounded up
 KM_PER_DEG_LAT = 111.32
+SEA_FLOOR_M = 5             # m, open sea reads 0 m in SRTM; a tile reaching deeper than this below zero is land (Dead Sea)
+SEA_EDGE_MAX_M = 10         # m, a missing tile cannot be sea when the shared edge of a neighbour is higher than this
 
 HGT_NAME = re.compile(r"^([NS])(\d{2})([EW])(\d{3})\.hgt$", re.IGNORECASE)
 
@@ -114,7 +118,24 @@ def wanted_tiles(bbox, anchors, buffer_km) -> set:
     return kept
 
 
-def cut(hgt_path: Path, out_dir: Path, wanted: set, sea: set) -> tuple:
+def is_open_sea(sub) -> bool:
+    """True for a tile that is flat open sea: every sample between -SEA_FLOOR_M and 0 m."""
+    return bool(sub.max() <= 0 and sub.min() >= -SEA_FLOOR_M)
+
+
+def edge_maxima(sub) -> dict:
+    """Highest sample on each border of a tile (row 0 = north edge, col 0 = west edge)."""
+    return {"n": int(sub[0, :].max()), "s": int(sub[-1, :].max()), "w": int(sub[:, 0].max()), "e": int(sub[:, -1].max())}
+
+
+def missing_tile_may_be_sea(key: tuple, edges: dict) -> bool:
+    """A masked tile without input data may be sea only if no stored neighbour rises above SEA_EDGE_MAX_M on the shared edge."""
+    lat, lon = key
+    shared = (((lat + 1, lon), "s"), ((lat - 1, lon), "n"), ((lat, lon + 1), "w"), ((lat, lon - 1), "e"))
+    return all(edges[nb][side] <= SEA_EDGE_MAX_M for nb, side in shared if nb in edges)
+
+
+def cut(hgt_path: Path, out_dir: Path, wanted: set, sea: set, edges: dict) -> tuple:
     corner = parse_corner(hgt_path.name)
     if corner is None:
         print(f"skip {hgt_path.name}: unrecognised name")
@@ -132,10 +153,11 @@ def cut(hgt_path: Path, out_dir: Path, wanted: set, sea: set) -> tuple:
         r0 = (SUB_TILES - 1 - i) * SUB_STEP
         c0 = j * SUB_STEP
         sub = grid[r0:r0 + TILE_SAMPLES, c0:c0 + TILE_SAMPLES]
-        if sub.max() <= 0:
+        if is_open_sea(sub):
             sea.add(f"{lat_idx}_{lon_idx}")
             sea_count += 1
             continue
+        edges[(lat_idx, lon_idx)] = edge_maxima(sub)
         payload = np.clip(sub, -32767, 32767).astype("<i2").tobytes()
         with (out_dir / f"{lat_idx}_{lon_idx}.bin.gz").open("wb") as f:
             with gzip.GzipFile(fileobj=f, mode="wb", compresslevel=GZIP_LEVEL, mtime=0) as gz:
@@ -186,13 +208,14 @@ def main() -> None:
         sys.exit(f"No .hgt files in {args.input}")
 
     sea = set()
+    edges = {}  # (latIdx, lonIdx) -> border maxima of every stored land tile
     covered_cells = set()
     total_w = 0
     for p in files:
         corner = parse_corner(p.name)
         if corner:
             covered_cells.add(corner)
-        w, s = cut(p, out_dir, wanted, sea)
+        w, s = cut(p, out_dir, wanted, sea, edges)
         total_w += w
         if w or s:
             print(f"{p.name}: {w} land tiles, {s} sea tiles")
@@ -202,8 +225,13 @@ def main() -> None:
     missing_cells = sorted({(k[0] // SUB_TILES, k[1] // SUB_TILES) for k in missing})
     if missing:
         if args.missing_as_sea:
-            sea.update(f"{i}_{j}" for i, j in missing)
-            print(f"{len(missing)} tiles in {len(missing_cells)} cells without HGT treated as sea")
+            accepted = [k for k in missing if missing_tile_may_be_sea(k, edges)]
+            rejected = [k for k in missing if k not in set(accepted)]
+            sea.update(f"{i}_{j}" for i, j in accepted)
+            print(f"{len(accepted)} tiles in {len(missing_cells)} cells without HGT treated as sea")
+            if rejected:
+                shown = ", ".join(f"{i}_{j}" for i, j in rejected[:20])
+                print(f"WARNING: {len(rejected)} missing tiles border land above {SEA_EDGE_MAX_M} m and stay unknown: {shown}")
         else:
             names = ", ".join(f"{'N' if la >= 0 else 'S'}{abs(la):02d}{'E' if lo >= 0 else 'W'}{abs(lo):03d}"
                               for la, lo in missing_cells)

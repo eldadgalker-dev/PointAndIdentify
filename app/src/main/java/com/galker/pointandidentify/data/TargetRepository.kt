@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -67,7 +67,7 @@ class TargetRepository(
             val entry = manifestRepository.manifest.value?.targets ?: return@withContext false
             if (entry.version <= prefs.getInt(KEY_VERSION, 0)) return@withContext false
             try {
-                val bytes = http.getBytes("${AppConfig.DATA_BASE_URL}/${entry.path}")
+                val bytes = http.getDataBytes(entry.path)
                 if (HttpClient.sha256Hex(bytes) != entry.sha256) {
                     Log.e(TAG, "Targets hash mismatch")
                     return@withContext false

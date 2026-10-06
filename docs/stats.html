@@ -69,14 +69,14 @@
 <main>
   <p class="small"><a href="./index.html">← חזרה לעמוד ההתקנה</a></p>
   <h1>סטטיסטיקה</h1>
-  <p class="small">הנתונים נשלפים בזמן אמת מ-GitHub Releases. אין איסוף נתונים על משתמשים או מכשירים.</p>
+  <p class="small">הנתונים נשלפים בזמן אמת מ-GitHub Releases. אין איסוף נתונים על משתמשים או מכשירים. המספרים הם הורדות של קבצים מ-GitHub, ולכן הם קירוב בלבד: התקנה מחדש, כמה מכשירים ושליחה חוזרת משפיעים עליהם.</p>
   <p><span id="status" role="status">טוען נתונים…</span> <button type="button" id="refresh">רענן</button></p>
 
   <div class="totals" id="totals" hidden>
     <div class="total"><span class="num" id="totalDownloads">0</span><span class="lbl">הורדות קובץ ההתקנה (APK)</span></div>
     <div class="total"><span class="num" id="totalChecks">0</span><span class="lbl">בדיקות עדכון</span></div>
-    <div class="total"><span class="num" id="totalInstalls">0</span><span class="lbl">התקנות חדשות (ייחודיות)</span></div>
-    <div class="total"><span class="num" id="latestDevices">0</span><span class="lbl">מכשירים שהפעילו את הגרסה האחרונה</span></div>
+    <div class="total"><span class="num" id="totalInstalls">0</span><span class="lbl">הורדות התקנה ראשונה (קירוב להתקנות חדשות)</span></div>
+    <div class="total"><span class="num" id="latestDevices">0</span><span class="lbl">הורדות הפעלה של הגרסה האחרונה (קירוב למכשירים)</span></div>
     <div class="total"><span class="num" id="totalReleases">0</span><span class="lbl">גרסאות שפורסמו</span></div>
   </div>
 
@@ -89,8 +89,8 @@
           <th scope="col">תאריך פרסום</th>
           <th scope="col" class="num">הורדות</th>
           <th scope="col" class="num">בדיקות עדכון</th>
-          <th scope="col" class="num">התקנות חדשות</th>
-          <th scope="col" class="num">מכשירים בגרסה</th>
+          <th scope="col" class="num">הורדות התקנה ראשונה</th>
+          <th scope="col" class="num">הורדות הפעלה</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -99,8 +99,8 @@
 
   <h2>איך לקרוא את המספרים</h2>
   <ul>
-    <li><strong>התקנות חדשות</strong>: האפליקציה מורידה פעם אחת, בהפעלה הראשונה של התקנה חדשה (לא אחרי עדכון), קובץ זעיר בשם <code>install.json</code>. כל הורדה היא התקנה אחת, ולכן הספירה ייחודית להתקנה. התקנה מחדש נספרת שוב.</li>
-    <li><strong>מכשירים בגרסה</strong>: פעם אחת לכל גרסה מותקנת, בהפעלתה הראשונה, האפליקציה מורידה את <code>launch.json</code> של אותה גרסה. המספר הוא כמה התקנות הפעילו את הגרסה לפחות פעם אחת. "מכשירים שהפעילו את הגרסה האחרונה" הוא המספר בשורה העליונה, כלומר כמה מהמשתמשים כבר מעודכנים. "–" אומר שהגרסה פורסמה לפני שהוספה הספירה.</li>
+    <li><strong>הורדות התקנה ראשונה</strong>: האפליקציה מורידה פעם אחת, בהפעלה הראשונה של התקנה חדשה (לא אחרי עדכון), קובץ זעיר בשם <code>install.json</code>. כל הורדה נחשבת התקנה אחת, אבל זה קירוב: התקנה מחדש או ניקוי נתונים נספרים שוב, ושליחה חוזרת אחרי כשל יכולה להוסיף הורדה.</li>
+    <li><strong>הורדות הפעלה</strong>: פעם אחת לכל גרסה מותקנת, בהפעלתה הראשונה, האפליקציה מורידה את <code>launch.json</code> של אותה גרסה. המספר הוא כמה התקנות הפעילו את הגרסה לפחות פעם אחת. "מכשירים שהפעילו את הגרסה האחרונה" הוא המספר בשורה העליונה, כלומר כמה מהמשתמשים כבר מעודכנים. "–" אומר שהגרסה פורסמה לפני שהוספה הספירה.</li>
     <li><strong>הורדות</strong>: כל הורדה של הקובץ <code>PointAndIdentify.apk</code>, בין אם מהדפדפן ובין אם כעדכון מתוך האפליקציה. הורדה נספרת בגרסה שהייתה האחרונה ברגע ההורדה.</li>
     <li><strong>בדיקות עדכון</strong>: כל בדיקה מורידה את הקובץ <code>version.json</code> (האפליקציה בודקת בכל הפעלה ובלחיצה על "בדוק עדכון"). בדיקה נספרת בגרסה שהייתה האחרונה ברגע הבדיקה, ולא בגרסה המותקנת בטלפון.</li>
     <li><strong>השהיה</strong>: GitHub מעדכן את מוני ההורדה באיחור של כמה דקות ואף יותר (נמדד: כ-10 דקות ויותר). הורדה או הפעלה שבוצעו הרגע יופיעו בספירה רק אחרי זמן, ולכן ייתכן שבדיקה מיידית תציג 0.</li>

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.1
+// Version 2.2
 package com.galker.pointandidentify.data.dem
 
 import android.content.Context
@@ -182,7 +182,7 @@ class DemTileRepository(
         File(tileDir, "${entry.key}_${entry.sha256.take(16)}.bin")
 
     private suspend fun download(entry: DataManifest.TileEntry): Boolean = try {
-        val gz = http.getBytes("${AppConfig.DATA_BASE_URL}/${entry.path}")
+        val gz = http.getDataBytes(entry.path)
         if (HttpClient.sha256Hex(gz) != entry.sha256) {
             Log.e(TAG, "Hash mismatch for tile ${entry.key}")
             false

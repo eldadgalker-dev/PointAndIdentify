@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,6 +18,7 @@ val githubRepo: String = project.property("point.githubRepo") as String
 val githubBranch: String = project.property("point.githubBranch") as String
 val rawHost: String = project.property("point.rawHost") as String
 val webHost: String = project.property("point.webHost") as String
+val cdnHost: String = project.property("point.cdnHost") as String // second data host (jsDelivr mirror of the GitHub repository)
 
 // Release signing is read from environment variables (set as CI secrets); absent values leave release unsigned.
 val signingStoreFile: String? = System.getenv("POINT_KEYSTORE_FILE")
@@ -41,6 +42,7 @@ android {
 
         // Data and update endpoints are composed from gradle.properties, not hardcoded in sources.
         buildConfigField("String", "DATA_BASE_URL", "\"$rawHost/$githubOwner/$githubRepo/$githubBranch/data\"")
+        buildConfigField("String", "DATA_FALLBACK_URL", "\"$cdnHost/$githubOwner/$githubRepo@$githubBranch/data\"")
         buildConfigField("String", "RELEASE_LATEST_URL", "\"$webHost/$githubOwner/$githubRepo/releases/latest/download\"")
         buildConfigField("String", "RELEASE_TAG_URL", "\"$webHost/$githubOwner/$githubRepo/releases/download\"")
     }

@@ -1,9 +1,10 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.data.net
 
+import android.util.Log
 import com.galker.pointandidentify.config.AppConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -42,6 +43,25 @@ class HttpClient {
     }
 
     suspend fun getText(url: String): String = String(getBytes(url), Charsets.UTF_8)
+
+    /**
+     * Fetches a published data file (path relative to the data folder). When the main host fails (blocked, throttled,
+     * unreachable) the same path is requested from the second host. Callers verify SHA-256 against the manifest, so a
+     * stale or tampered mirror copy is rejected rather than trusted.
+     */
+    suspend fun getDataBytes(relativePath: String): ByteArray = try {
+        getBytes("${AppConfig.DATA_BASE_URL}/$relativePath")
+    } catch (e: IOException) {
+        Log.w(TAG, "Main data host failed for $relativePath (${e.message}); trying the second host")
+        try {
+            getBytes("${AppConfig.DATA_FALLBACK_URL}/$relativePath")
+        } catch (e2: IOException) {
+            e.addSuppressed(e2)
+            throw e
+        }
+    }
+
+    suspend fun getDataText(relativePath: String): String = String(getDataBytes(relativePath), Charsets.UTF_8)
 
     /** Streams a response to a file and reports progress in percent (-1 when length is unknown). */
     suspend fun download(url: String, target: File, onProgress: (Int) -> Unit) = withContext(Dispatchers.IO) {
@@ -93,6 +113,7 @@ class HttpClient {
     }
 
     companion object {
+        private const val TAG = "HttpClient"
         private const val BUFFER_SIZE = 64 * 1024
 
         fun sha256Hex(bytes: ByteArray): String =

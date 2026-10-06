@@ -1,10 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.data
 
 import android.content.Context
+import com.galker.pointandidentify.config.AppConfig
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,8 +34,14 @@ class PrivatePointStore(context: Context) {
         }
     }
 
+    /** Adds a point; false (nothing stored) when AppConfig.PRIVATE_POINTS_MAX points exist already. */
     @Synchronized
-    fun add(point: PrivatePoint) = save(all() + point)
+    fun add(point: PrivatePoint): Boolean {
+        val current = all()
+        if (current.size >= AppConfig.PRIVATE_POINTS_MAX) return false
+        save(current + point)
+        return true
+    }
 
     @Synchronized
     fun removeAt(index: Int) {

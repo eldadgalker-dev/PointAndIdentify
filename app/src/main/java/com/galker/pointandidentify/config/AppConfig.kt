@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.17
+// Version 1.18
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -17,6 +17,7 @@ object AppConfig {
 
     // ===== Parameters: data source (composed in Gradle from gradle.properties) =====
     val DATA_BASE_URL: String = BuildConfig.DATA_BASE_URL          // .../data
+    val DATA_FALLBACK_URL: String = BuildConfig.DATA_FALLBACK_URL  // .../data on a second host, used when the first fails
     val RELEASE_LATEST_URL: String = BuildConfig.RELEASE_LATEST_URL  // .../releases/latest/download
     const val MANIFEST_FILE = "manifest.json"
     const val RELEASE_APK_ASSET = "PointAndIdentify.apk"
@@ -44,14 +45,15 @@ object AppConfig {
     const val MAX_TARGET_RANGE_M = 50_000.0   // m, must not exceed FETCH_RADIUS_M; curvature drop here ~171 m
     const val MIN_TARGET_RANGE_M = 300.0      // m, observer standing at/inside a target does not select it
     const val LOS_RECALC_DISTANCE_M = 150.0   // m, observer movement that triggers LOS recompute
-    const val DEM_SAMPLE_SPACING_M = 30.0     // m, ~ SRTM1 cell size
+    const val DEM_SAMPLE_SPACING_M = 20.0     // m, LOS / aim-ray step; below the smallest SRTM1 cell width in the region (~25 m east-west at 34 N)
     const val EYE_HEIGHT_M = 1.7              // m, default observer eye above ground (the user can change it in Settings)
     const val OBSERVER_HEIGHT_MAX_M = 500.0   // m, upper limit of the user-entered height above ground
     // Target height, footprint exclusion and angular radius are per kind: see domain/TargetKind.kt
     const val LOS_CLEARANCE_TOLERANCE_M = 5.0 // m, terrain-model noise (SRTM ~ +-6..16 m, includes buildings): a blocker below the line by less than this is ignored
     const val EARTH_RADIUS_M = 6_371_008.8    // m, mean Earth radius
     const val REFRACTION_K = 0.13             // standard atmospheric refraction coefficient
-    const val GEOID_UNDULATION_FALLBACK_M = 20.0 // m, ESTIMATE for Israel; used only without DEM and MSL
+    const val GEOID_UNDULATION_FALLBACK_M = 20.0 // m, ESTIMATE for Israel; replaces the platform MSL altitude on Android < 14
+    const val GEOID_FALLBACK_SIGMA_M = 5.0    // m, uncertainty of that estimate; added in quadrature to the fusion sigma when it is used
 
     // ===== Parameters: target selection =====
     const val DEFAULT_HFOV_DEG = 60.0         // deg, used when camera FOV is unavailable
@@ -85,6 +87,8 @@ object AppConfig {
     // ===== Parameters: current-city mode (camera pointing well below the horizon, e.g. the street below or a phone on a table) =====
     const val CITY_MODE_BELOW_DEG = -6.0      // deg, camera elevation below this = show only the current city
     const val CITY_MODE_EXIT_DEG = -4.0       // deg, camera elevation above this = leave city mode (hysteresis)
+    const val CITY_BLIND_BELOW_DEG = -30.0    // deg, below the CITY_MODE_BELOW_DEG rule alone only acts when the aim ray found no ground (no terrain data), and only this steeply down
+    const val CITY_YIELD_MARGIN_M = 200.0     // m, a visible target in the crosshair up to this much beyond the aimed ground point beats the current-city display
     const val AIM_RAY_MAX_M = 5_000.0         // m, longest distance at which the camera axis is intersected with the terrain
     const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
     const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
@@ -96,6 +100,7 @@ object AppConfig {
     const val GEOCODER_MAX_RESULTS = 5        // address matches requested from the platform geocoder
 
     // ===== Parameters: zoom =====
+    const val PRIVATE_POINTS_MAX = 100        // user-defined points (kept in SharedPreferences, loaded as one JSON text)
     const val ZOOM_MIN_FALLBACK = 1.0         // used until the camera reports its zoom range
     const val EXTRA_ZOOM_MAX = 4.0            // extra calculated (digital) zoom factor applied beyond the camera's own maximum
 
@@ -155,6 +160,8 @@ object AppConfig {
         require(0.0 < CITY_AIM_RADIUS_M && CITY_AIM_RADIUS_M < CITY_AIM_EXIT_M && CITY_AIM_EXIT_M <= AIM_RAY_MAX_M) {
             "Invalid current-location circle radii"
         }
+        require(CITY_BLIND_BELOW_DEG < CITY_MODE_BELOW_DEG && CITY_YIELD_MARGIN_M >= 0) { "Invalid city-mode override parameters" }
+        require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
         require(CITY_SEARCH_RADIUS_M > 0 && CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }

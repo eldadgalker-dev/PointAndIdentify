@@ -150,4 +150,7 @@
     <string name="help_install">First installation\nDownload link of the installation file (APK) for a new device. You can select and copy the link, or tap the button:</string>
     <string name="btn_copy_link">Copy link</string>
     <string name="link_copied">Link copied</string>
+
+    <string name="help_accuracy">Accuracy and limits\n\u201cVisible\u201d is an estimate from a terrain model, not a confirmation that you saw the target. The elevation model (SRTM) is accurate to a few metres up to a few tens of metres and does not fully include trees and buildings. The check ignores a blocker up to 5 m below the line of sight, and the terrain within 60 to 150 m of a target is not tested, so the target does not block itself. These are estimated values that were not validated in the field.\nThe camera heading depends on the device compass, which can be disturbed by nearby metal or a magnet even after the start-up check.\nThe counters on the statistics page count downloads of files from GitHub, not installs or users. The SHA-256 check of an update verifies file integrity only; the authenticity of the app is verified by Android\'s signature check at install.\nIf downloading data from the main source fails, the app tries a second source (jsDelivr) for the same files. A file is accepted only when its SHA-256 matches the manifest.</string>
+    <string name="points_limit">Up to %1$d private points can be saved. Delete one to add a new one.</string>
 </resources>

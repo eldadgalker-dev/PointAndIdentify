@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.17
+// Version 1.19
 package com.galker.pointandidentify.ui
 
 import android.Manifest
@@ -489,8 +489,9 @@ class MainActivity : AppCompatActivity() {
                     lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0
                 ) {
                     toast(getString(R.string.points_invalid))
+                } else if (!privateStore().add(PrivatePoint(name, lat, lon))) {
+                    toast(getString(R.string.points_limit, AppConfig.PRIVATE_POINTS_MAX))
                 } else {
-                    privateStore().add(PrivatePoint(name, lat, lon))
                     vm.refreshTargets()
                     toast(getString(R.string.points_saved))
                     dialog.dismiss()
@@ -541,6 +542,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(pad, pad / 2, pad, pad / 2)
             addView(body(getString(R.string.help_text)))
             addView(body(getString(R.string.help_glossary)))
+            addView(body(getString(R.string.help_accuracy)))
             addView(body(getString(R.string.help_license), ltr = true))
             addView(body(getString(R.string.help_install)))
             addView(link)
