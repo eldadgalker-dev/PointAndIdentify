@@ -1,5 +1,5 @@
 {
- "version": 6,
+ "version": 7,
  "items": [
   {
    "name": "Abu Abdullah Al-Aidy",
@@ -1018,14 +1018,6 @@
    "h": null
   },
   {
-   "name": "Ignoto - arco di pietra",
-   "kind": "monument",
-   "lat": 32.731924,
-   "lon": 35.265108,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "Kaus al-Nasr",
    "kind": "monument",
    "lat": 32.182342,
@@ -1828,8 +1820,8 @@
   {
    "name": "חץ שחור",
    "kind": "monument",
-   "lat": 31.506918,
-   "lon": 34.552822,
+   "lat": 31.506898,
+   "lon": 34.553214,
    "alt": null,
    "h": null
   },
@@ -15818,14 +15810,6 @@
    "h": null
   },
   {
-   "name": "Khirbet Kafr Qara'",
-   "kind": "ruins",
-   "lat": 32.157908,
-   "lon": 35.062191,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "Khirbet Marah el Inab",
    "kind": "ruins",
    "lat": 32.202628,
@@ -19556,7 +19540,7 @@
   {
    "name": "בית הכנסת העתיק של אשתמוע",
    "kind": "ruins",
-   "lat": 31.398668,
+   "lat": 31.398663,
    "lon": 35.067383,
    "alt": null,
    "h": null
@@ -20164,8 +20148,8 @@
   {
    "name": "בריכת שרה",
    "kind": "ruins",
-   "lat": 31.523108,
-   "lon": 35.108684,
+   "lat": 31.523056,
+   "lon": 35.108647,
    "alt": null,
    "h": null
   },
@@ -31890,6 +31874,14 @@
    "h": null
   },
   {
+   "name": "رقم00000",
+   "kind": "ruins",
+   "lat": 29.561003,
+   "lon": 34.960286,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "سعيد محفوظ د.محمود ديل",
    "kind": "ruins",
    "lat": 33.181416,
@@ -34190,14 +34182,6 @@
    "kind": "settlement",
    "lat": 33.616997,
    "lon": 35.581689,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "Bakhit Jerabah",
-   "kind": "settlement",
-   "lat": 30.99827,
-   "lon": 34.236604,
    "alt": null,
    "h": null
   },
@@ -36550,14 +36534,6 @@
    "kind": "settlement",
    "lat": 32.5,
    "lon": 36.083333,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "Khirbat Al Ra'ai",
-   "kind": "settlement",
-   "lat": 32.154547,
-   "lon": 35.066986,
    "alt": null,
    "h": null
   },
@@ -39012,8 +38988,8 @@
   {
    "name": "Um Lasafa",
    "kind": "settlement",
-   "lat": 31.435909,
-   "lon": 35.156068,
+   "lat": 31.435962,
+   "lon": 35.156101,
    "alt": null,
    "h": null
   },
@@ -40212,8 +40188,8 @@
   {
    "name": "אביעזר",
    "kind": "settlement",
-   "lat": 31.681742,
-   "lon": 35.015664,
+   "lat": 31.681601,
+   "lon": 35.015245,
    "alt": null,
    "h": null
   },
@@ -47876,8 +47852,8 @@
   {
    "name": "ד'הרייה",
    "kind": "settlement",
-   "lat": 31.407719,
-   "lon": 34.971016,
+   "lat": 31.4077,
+   "lon": 34.971058,
    "alt": null,
    "h": null
   },
@@ -48604,8 +48580,8 @@
   {
    "name": "דקייקה",
    "kind": "settlement",
-   "lat": 31.383071,
-   "lon": 35.225259,
+   "lat": 31.383164,
+   "lon": 35.224921,
    "alt": null,
    "h": null
   },
@@ -52878,6 +52854,14 @@
    "kind": "settlement",
    "lat": 30.988803,
    "lon": 34.925097,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "ירושלים",
+   "kind": "settlement",
+   "lat": 31.778847,
+   "lon": 35.225786,
    "alt": null,
    "h": null
   },
@@ -57261,7 +57245,7 @@
    "name": "מעון",
    "kind": "settlement",
    "lat": 31.413808,
-   "lon": 35.162265,
+   "lon": 35.162181,
    "alt": null,
    "h": null
   },
@@ -60068,8 +60052,8 @@
   {
    "name": "סאפא",
    "kind": "settlement",
-   "lat": 31.907339,
-   "lon": 35.058992,
+   "lat": 31.906665,
+   "lon": 35.060564,
    "alt": null,
    "h": null
   },
@@ -60612,8 +60596,8 @@
   {
    "name": "ספא",
    "kind": "settlement",
-   "lat": 31.906563,
-   "lon": 35.059302,
+   "lat": 31.90657,
+   "lon": 35.059394,
    "alt": null,
    "h": null
   },
