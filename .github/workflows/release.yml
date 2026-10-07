@@ -1,10 +1,11 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.2
+# Version 2.3
 # Builds a signed release APK automatically whenever app code reaches main (or on manual run),
 # creates tag v<versionBase>.<run number> and publishes a GitHub Release with
 # PointAndIdentify.apk and version.json, which the in-app update button reads.
+# The unit tests run first: a failing test blocks the Release.
 # Requires the four POINT_* signing secrets (repository secrets, set once).
 name: release
 
@@ -84,6 +85,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
         with:
           gradle-version: "8.9"
+
+      # Gate: a failing unit test stops the run here, before the keystore is decoded and before any Release is created.
+      - name: Unit tests
+        run: gradle :app:testDebugUnitTest --stacktrace
 
       - name: Decode signing keystore
         env:
