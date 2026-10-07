@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.sensors
 
 import android.content.Context
@@ -112,6 +112,8 @@ class OrientationProvider(context: Context) : SensorEventListener {
                 SensorManager.getRotationMatrixFromVector(gameRotation, event.values)
                 val dtSeconds = if (lastGameTimestampNs == 0L) 0.0 else (event.timestamp - lastGameTimestampNs) / 1e9
                 lastGameTimestampNs = event.timestamp
+                // The gyroscope azimuth has an arbitrary zero: publish nothing until the magnetic reference exists.
+                if (lastMagTrueAz == null) return
                 val fused = fusion.fuse(cameraAzimuthDeg(gameRotation), lastMagTrueAz, magneticReadingTrusted(), dtSeconds)
                 publish(fused, cameraElevationDeg(gameRotation))
             }

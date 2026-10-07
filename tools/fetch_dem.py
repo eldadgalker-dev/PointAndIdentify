@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 1.0
+# Version 1.1
 """Downloads the 1-degree elevation cells needed by build_dem_tiles.py, without any account.
 
 Source
@@ -26,6 +26,7 @@ import gzip
 import json
 import sys
 import time
+import zlib
 from pathlib import Path
 
 import numpy as np
@@ -91,7 +92,7 @@ def fetch(lat: int, lon: int, out_dir: Path):
                 upsample_srtm3(raw.reshape(SRTM3, SRTM3)).tofile(out_dir / f"{name}.hgt")
                 return "upsampled"
             raise ValueError(f"{name}: unexpected size {raw.size} samples")
-        except (requests.RequestException, OSError, ValueError) as e:
+        except (requests.RequestException, OSError, ValueError, EOFError, zlib.error) as e:  # EOFError / zlib.error: truncated gzip body
             last = e
             print(f"{name}: attempt {attempt} failed: {e}")
             time.sleep(RETRY_WAIT_S)

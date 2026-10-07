@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -39,14 +39,16 @@ object AimRay {
         val dxLat = cos(az)
         val dxLon = sin(az)
         var previousX = 0.0
-        var previousGap = eyeAltM - (terrain.elevationM(lat, lon) ?: return null) // ray height minus terrain height
-        if (previousGap <= 0.0) return 0.0
+        val groundHere = terrain.elevationM(lat, lon) ?: return null
+        // An eye at or below the model terrain (height 0 chosen, or DEM noise) would put the ground at distance 0.
+        val eye = maxOf(eyeAltM, groundHere + AppConfig.AIM_MIN_EYE_ABOVE_GROUND_M)
+        var previousGap = eye - groundHere // ray height minus terrain height
         var x = AppConfig.DEM_SAMPLE_SPACING_M
         while (x <= AppConfig.AIM_RAY_MAX_M) {
             val la = lat + GeoMath.metersToLatDeg(x * dxLat)
             val lo = lon + GeoMath.metersToLonDeg(x * dxLon, lat)
             val z = terrain.elevationM(la, lo) ?: return null
-            val gap = eyeAltM + x * slope - (z - GeoMath.curvatureDropM(x))
+            val gap = eye + x * slope - (z - GeoMath.curvatureDropM(x))
             if (gap <= 0.0) {
                 // Linear crossing between the last sample above the terrain and this one below it.
                 val t = previousGap / (previousGap - gap)

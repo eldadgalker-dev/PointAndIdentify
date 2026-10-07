@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.geo
 
 import com.galker.pointandidentify.config.AppConfig
@@ -41,7 +41,8 @@ object GeoMath {
     /** Wraps any angle into [0, 360). */
     fun normalizeDeg(deg: Double): Double {
         val r = deg % 360.0
-        return if (r < 0) r + 360.0 else r
+        val n = if (r < 0) r + 360.0 else r
+        return if (n >= 360.0) 0.0 else n // r + 360 rounds to exactly 360 for a tiny negative r
     }
 
     /** Smallest absolute difference between two azimuths, degrees in [0, 180]. */

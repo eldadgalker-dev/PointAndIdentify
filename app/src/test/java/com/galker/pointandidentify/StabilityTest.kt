@@ -1,9 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
+import kotlin.math.tan
+import kotlin.math.atan
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.domain.Candidate
 import com.galker.pointandidentify.domain.CityPicker
@@ -114,5 +116,16 @@ class StabilityTest {
         val z1 = FindProjection.screenOffsetPx(0.0, 5.0, 60.0, 1.0, 1080, 2160)!!
         assertEquals(z1.second * 2f, z2.second, 0.5f)
         assertNull(FindProjection.screenOffsetPx(85.0, 0.0, 60.0, 1.0, 1080, 2160))
+    }
+
+    @Test
+    fun findDotUsesTheFullSensorFovAndAppliesTheScreenCropItself() {
+        // 1080 x 2400: the visible fraction is (1080 / 2400) / 0.75 = 0.6, so tan(visible / 2) = tan(sensor / 2) * 0.6
+        // and one tangent unit is W / (2 tan(visible / 2)) pixels. Passing the SENSOR fov must give exactly that.
+        val sensor = 60.0
+        val visible = Math.toDegrees(2.0 * atan(tan(Math.toRadians(sensor / 2.0)) * 0.6))
+        val expectedUp10 = 1080.0 / (2.0 * tan(Math.toRadians(visible / 2.0))) * tan(Math.toRadians(10.0))
+        val p = FindProjection.screenOffsetPx(0.0, 10.0, sensor, 1.0, 1080, 2400)!!
+        assertEquals(-expectedUp10.toFloat(), p.second, 1.0f)
     }
 }

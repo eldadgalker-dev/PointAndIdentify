@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -98,7 +98,9 @@ class TargetRepository(
         val own = privatePoints.all().mapIndexedNotNull { i, p ->
             if (p.name.contains(q, ignoreCase = true)) privateEntity(i, p) else null
         }
-        val fromDb = dao.searchByName(q, AppConfig.FIND_MAX_RESULTS)
+        // LIKE wildcards typed by the user ("%", "_") are literals here.
+        val escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        val fromDb = dao.searchByName(escaped, "$escaped%", AppConfig.FIND_MAX_RESULTS)
         val local = (own + fromDb).take(AppConfig.FIND_MAX_RESULTS)
         if (local.isNotEmpty()) local else geocode(q)
     }

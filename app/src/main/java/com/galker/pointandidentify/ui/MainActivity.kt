@@ -1,9 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.21
+// Version 1.22
 package com.galker.pointandidentify.ui
 
+import android.provider.Settings
+import android.net.Uri
+import android.content.Intent
+import kotlinx.coroutines.CoroutineStart
 import android.Manifest
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraCharacteristics
@@ -132,7 +136,7 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         val ok = result[Manifest.permission.CAMERA] == true && result[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (ok) startSystems() else Toast.makeText(this, R.string.perm_missing, Toast.LENGTH_LONG).show()
+        if (ok) startSystems() else showPermissionDialog()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -219,12 +223,14 @@ class MainActivity : AppCompatActivity() {
         if (hasCorePermissions()) {
             checkLocationSettings()
             vm.startLocation()
+            if (camera == null) startCamera() // permissions granted later (system settings): bind the camera on return
             vm.startStartupChecks() // compass health; runs once per process
         }
     }
 
     override fun onPause() {
         super.onPause()
+        vm.onPaused()
         vm.orientationProvider.stop()
         vm.pressureProvider.stop()
         vm.stopLocation()
@@ -680,15 +686,34 @@ class MainActivity : AppCompatActivity() {
 
     // ===== Camera =====
 
+    /** Missing permissions: explain, and offer the system settings (there is no second system prompt after a refusal). */
+    private fun showPermissionDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.perm_title)
+            .setMessage(R.string.perm_missing)
+            .setPositiveButton(R.string.perm_open_settings) { _, _ ->
+                startActivity(
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+                )
+            }
+            .setNegativeButton(R.string.dialog_close, null)
+            .show()
+    }
+
+    private var cameraStarting = false
+
     private fun startCamera() {
+        if (cameraStarting) return
+        cameraStarting = true
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
-            val provider = future.get()
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
-            imageCapture = ImageCapture.Builder()
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
-                .build()
+            cameraStarting = false
             try {
+                val provider = future.get() // inside the try: a failing camera service must not crash the app
+                val preview = Preview.Builder().build().also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
+                imageCapture = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                    .build()
                 provider.unbindAll()
                 val bound = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
                 camera = bound
@@ -752,13 +777,19 @@ class MainActivity : AppCompatActivity() {
 
         ic.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
-                lifecycleScope.launch {
+                // ATOMIC: the body starts even when the Activity is being destroyed, so the image is always closed below.
+                lifecycleScope.launch(start = CoroutineStart.ATOMIC) {
                     val ok = try {
                         photoExporter.export(image, content, meta, extra, viewAspect)
                         true
+                    } catch (e: OutOfMemoryError) {
+                        Log.e(TAG, "Photo export ran out of memory", e)
+                        false
                     } catch (e: Exception) {
                         Log.e(TAG, "Photo export failed", e)
                         false
+                    } finally {
+                        runCatching { image.close() } // export() closes it too; closing twice is harmless
                     }
                     Toast.makeText(
                         this@MainActivity,
@@ -940,7 +971,7 @@ class MainActivity : AppCompatActivity() {
             findInside = find?.guide?.inside ?: false,
             findDeltaAzDeg = find?.guide?.deltaAzimuthDeg,
             findDeltaElDeg = find?.guide?.deltaElevationDeg,
-            hfovDeg = vm.hfovDeg,
+            hfovDeg = sensorHfovDeg, // the full-sensor FOV: FindProjection applies the screen crop itself
             findLabel = find?.let {
                 getString(R.string.find_label, it.name, it.distanceM / 1000.0, it.bearingDeg.roundToInt().mod(360)) +
                     if (it.guide.inside) " " + getString(R.string.find_in_crosshair) else ""

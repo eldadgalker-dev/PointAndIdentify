@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.capture
 
 import android.content.ContentValues
@@ -58,14 +58,15 @@ class PhotoExporter(private val context: Context) {
         withContext(Dispatchers.Default) {
             val rotation = image.imageInfo.rotationDegrees
             val bitmap = image.use { cropToView(decodeMutable(it), rotation, viewAspect, extraZoom) }
+            val tmp = File.createTempFile("capture_", ".jpg", context.cacheDir) // unique: two quick shots must not share a file
             try {
                 burnOverlay(bitmap, rotation, content)
-                val tmp = File(context.cacheDir, "capture_tmp.jpg")
                 tmp.outputStream().use { bitmap.compress(Bitmap.CompressFormat.JPEG, AppConfig.JPEG_QUALITY, it) }
                 writeExif(tmp, rotation, meta)
-                withContext(Dispatchers.IO) { publish(tmp) }.also { tmp.delete() }
+                withContext(Dispatchers.IO) { publish(tmp) }
             } finally {
                 bitmap.recycle()
+                tmp.delete()
             }
         }
 

@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 3.2
+# Version 3.3
 """Builds data/targets.json (settlements + aimable landmarks) from OpenStreetMap (Overpass API).
 
 Scope
@@ -103,9 +103,11 @@ def overpass(query: str) -> list:
                 snippet = " ".join(r.text.split())[:300]
                 raise RuntimeError(f"HTTP {r.status_code}: {snippet}")
             data = r.json()
-            if "remark" in data and not data.get("elements"):
-                # Overpass reports server-side timeouts / memory limits as a remark with no elements.
-                raise RuntimeError(f"server remark: {data['remark'][:300]}")
+            remark = str(data.get("remark", ""))
+            if remark and (not data.get("elements") or "runtime error" in remark.lower()):
+                # Overpass reports server-side timeouts / memory limits as a remark; a "runtime error" remark can come
+                # together with PARTIAL elements, which must never be accepted as complete data.
+                raise RuntimeError(f"server remark: {remark[:300]}")
             print(f"overpass: {url} -> {len(data.get('elements', []))} elements")
             return data.get("elements", [])
         except (requests.RequestException, ValueError, RuntimeError) as e:

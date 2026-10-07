@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.20
+// Version 1.21
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -29,6 +29,8 @@ object AppConfig {
 
     // ===== Parameters: automatic update check =====
     const val UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000L // ms, repeat the check when the user returns to the app after this long
+    const val TILE_RETRY_INTERVAL_MS = 30_000L  // ms, retry the terrain download after an incomplete fetch (offline, failed tiles)
+    const val LOCATION_DEFAULT_ACCURACY_M = 50f // m, assumed horizontal accuracy of a fix that reports none
     const val UPDATE_RETRY_INTERVAL_MS = 60 * 1000L      // ms, retry after a failed check (no network)
 
     // ===== Parameters: terrain tiles =====
@@ -71,6 +73,7 @@ object AppConfig {
     const val PRESSURE_SMOOTHING_ALPHA = 0.2f  // low-pass factor of the pressure, 0..1
     const val ALT_BARO_DRIFT_M_PER_SQRT_S = 0.1 // m / sqrt(s), weather drift of the barometer (about 6 m per hour)
     const val ALT_BARO_NOISE_M = 1.0           // m, barometer noise after smoothing
+    const val ALT_INITIAL_SIGMA_MIN_M = 15.0   // m, the first GPS altitude is never trusted more than this (a bad first fix must not lock the filter)
     const val ALT_MIN_SIGMA_M = 4.0            // m, the fused altitude is never reported as more certain than this
     const val ALT_GPS_SIGMA_DEFAULT_M = 20.0   // m, GPS vertical accuracy when the device reports none
     const val ALT_GPS_SIGMA_MIN_M = 3.0        // m, lower clamp of the reported GPS vertical accuracy
@@ -89,6 +92,7 @@ object AppConfig {
     const val CITY_MODE_EXIT_DEG = -4.0       // deg, camera elevation above this = leave city mode (hysteresis)
     const val CITY_BLIND_BELOW_DEG = -30.0    // deg, below the CITY_MODE_BELOW_DEG rule alone only acts when the aim ray found no ground (no terrain data), and only this steeply down
     const val CITY_YIELD_MARGIN_M = 200.0     // m, a visible target in the crosshair up to this much beyond the aimed ground point beats the current-city display
+    const val AIM_MIN_EYE_ABOVE_GROUND_M = 0.5 // m, the aim ray starts at least this high above the terrain under the observer
     const val AIM_RAY_MAX_M = 5_000.0         // m, longest distance at which the camera axis is intersected with the terrain
     const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
     const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
@@ -184,6 +188,8 @@ object AppConfig {
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }
+        require(ALT_INITIAL_SIGMA_MIN_M >= ALT_MIN_SIGMA_M && AIM_MIN_EYE_ABOVE_GROUND_M > 0.0) { "Invalid altitude / aim parameters" }
+        require(TILE_RETRY_INTERVAL_MS > 0 && LOCATION_DEFAULT_ACCURACY_M > 0f) { "Invalid retry / accuracy parameters" }
         require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }
         require(VERTICAL_MARGIN_DEG in 0.0..5.0) { "VERTICAL_MARGIN_DEG out of range" }

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -28,13 +28,23 @@ class ManifestRepository(context: Context, private val http: HttpClient) {
     private val _offline = MutableStateFlow(false)
     val offline: StateFlow<Boolean> = _offline
 
+    /** Offline start: makes the cached manifest available at once, without waiting for the network. */
+    suspend fun loadCache() = mutex.withLock {
+        withContext(Dispatchers.IO) {
+            if (_manifest.value == null) _manifest.value = loadCached()
+        }
+    }
+
     /** Fetches the remote manifest once per call; returns the best available manifest. */
     suspend fun refresh(): DataManifest? = mutex.withLock {
         withContext(Dispatchers.IO) {
             try {
                 val text = http.getDataText(AppConfig.MANIFEST_FILE)
                 val parsed = DataManifest.parse(text) // parse before caching: never persist a corrupt file
-                cacheFile.writeText(text)
+                // Atomic: a crash in the middle of the write must not leave a corrupt cache.
+                val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
+                tmp.writeText(text)
+                if (!tmp.renameTo(cacheFile)) cacheFile.writeText(text)
                 _offline.value = false
                 _manifest.value = parsed
             } catch (e: Exception) {

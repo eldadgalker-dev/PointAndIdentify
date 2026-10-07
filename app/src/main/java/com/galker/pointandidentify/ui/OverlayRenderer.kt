@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.11
+// Version 1.12
 package com.galker.pointandidentify.ui
 
 import android.graphics.Canvas
@@ -45,7 +45,7 @@ data class OverlayContent(
     val findLabel: String = "",              // Find: name, range and azimuth, shown under the target title
     val findDeltaAzDeg: Double? = null,      // Find: horizontal offset of the place from the camera axis (right = positive)
     val findDeltaElDeg: Double? = null,      // Find: vertical offset of the place from the camera axis (up = positive)
-    val hfovDeg: Double = 60.0               // camera horizontal field of view at zoom 1 (places the Find dot on the screen)
+    val hfovDeg: Double = 60.0               // full sensor-image short-side FOV at zoom 1 (not the cropped visible FOV) (places the Find dot on the screen)
 )
 
 /**

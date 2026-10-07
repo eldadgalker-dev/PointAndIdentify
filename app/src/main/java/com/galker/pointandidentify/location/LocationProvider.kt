@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.location
 
 import android.annotation.SuppressLint
@@ -66,6 +66,9 @@ class LocationProvider(context: Context) {
         client.removeLocationUpdates(callback)
     }
 
+    private fun accuracyOf(loc: Location): Float =
+        if (loc.hasAccuracy()) loc.accuracy else AppConfig.LOCATION_DEFAULT_ACCURACY_M
+
     private fun toFix(loc: Location): ObserverFix {
         // GPS altitude is ellipsoidal (WGS84). API 34+ may expose an MSL value directly;
         // otherwise subtract an estimated geoid undulation (used only when the DEM is unavailable).
@@ -77,7 +80,7 @@ class LocationProvider(context: Context) {
             else -> null
         }
         val filtered = filter.update(
-            loc.elapsedRealtimeNanos / 1_000_000L, loc.latitude, loc.longitude, loc.accuracy.toDouble(),
+            loc.elapsedRealtimeNanos / 1_000_000L, loc.latitude, loc.longitude, accuracyOf(loc).toDouble(),
             if (loc.hasSpeed()) loc.speed.toDouble() else null
         )
         return ObserverFix(

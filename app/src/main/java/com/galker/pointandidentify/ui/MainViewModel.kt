@@ -1,9 +1,10 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.19
+// Version 1.20
 package com.galker.pointandidentify.ui
 
+import kotlinx.coroutines.delay
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
@@ -115,7 +116,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val orientationProvider = OrientationProvider(app)
     val pressureProvider = PressureProvider(app)
     private val altitudeFusion = BaroGpsFusion()
-    private var lastEyeAlt: Double? = null
+    private var lastEyeAlt: Double? = null      // eye altitude of the last FINISHED visibility pass (used by the aim ray)
+    private var lastLosEyeAlt: Double? = null   // eye altitude at the START of the last visibility pass (change trigger)
     private val locationProvider = LocationProvider(app)
     private val terrain = TerrainSource { lat, lon -> dem.elevationM(lat, lon) }
     private val losCalculator = LineOfSightCalculator(terrain)
@@ -178,10 +180,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             targets.ensureSeeded() // seeding completes before the first query: no empty-list race
             _ui.value = _ui.value.copy(phase = Phase.WAITING_LOCATION, targetsCount = targets.totalCount)
+            // Offline start: the cached manifest and tiles are enough, so work starts before the network answers.
+            manifest.loadCache()
+            dataReady = true
+            locationProvider.fix.value?.let { onFix(it) }
             manifest.refresh()
             if (targets.updateFromRemoteIfNewer()) forceRecompute()
             _ui.value = _ui.value.copy(targetsCount = targets.totalCount, offline = manifest.offline.value)
-            dataReady = true
+            lastFetchFix = null // the fresh manifest may list other tiles
             locationProvider.fix.value?.let { onFix(it) }
         }
 
@@ -303,6 +309,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Runs once per process after permissions are granted: compass health. */
+    /**
+     * The sensors stop while the app is paused (a permission or settings dialog, Home): a compass check that is still
+     * running would see no samples and report a false "no compass". It is cancelled here and repeated on resume.
+     */
+    fun onPaused() {
+        if (_ui.value.compass.verdict == CompassVerdict.CHECKING && startupChecksDone) {
+            compassJob?.cancel()
+            startupChecksDone = false
+        }
+    }
+
     fun startStartupChecks() {
         if (startupChecksDone) return
         startupChecksDone = true
@@ -367,18 +384,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (needFetch && fetchJob?.isActive != true) {
             lastFetchFix = fix
             fetchJob = viewModelScope.launch {
-                dem.ensureTilesAround(fix.lat, fix.lon, AppConfig.FETCH_RADIUS_M)
+                val status = dem.ensureTilesAround(fix.lat, fix.lon, AppConfig.FETCH_RADIUS_M)
                 _ui.value = _ui.value.copy(offline = manifest.offline.value)
                 forceRecompute() // terrain changed: previous LOS results may be UNKNOWN
+                // Missing tiles (offline start, failed downloads) or no manifest yet: try again later, not only after a move.
+                if (manifest.manifest.value == null || status.available < status.required) {
+                    delay(AppConfig.TILE_RETRY_INTERVAL_MS)
+                    lastFetchFix = null
+                }
             }
         }
 
         // A change of the observer altitude (stairs, lift) also needs a new visibility pass, even when standing still.
         val eyeNow = observerEyeAltitude(fix)
-        val previousEye = lastEyeAlt
+        val previousEye = lastLosEyeAlt
         val eyeChanged = eyeNow != null && previousEye != null && abs(eyeNow - previousEye) > AppConfig.ALT_RECALC_M
         val needLos = lastLosFix?.let { moved(it, fix) > AppConfig.LOS_RECALC_DISTANCE_M } ?: true
-        if (needLos || eyeChanged) recompute(fix)
+        if (needLos || eyeChanged) {
+            // Remembered when the pass STARTS: a pass cancelled by the next fix must not keep the trigger on forever.
+            lastLosEyeAlt = eyeNow
+            recompute(fix)
+        }
     }
 
     /** Re-evaluates all targets now (called after the user's private points changed). */
@@ -422,7 +448,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             lastEyeAlt = result.eyeAlt
             _ui.value = _ui.value.copy(observerEyeAltM = result.eyeAlt)
             evaluations.value = result.evals
-            findEval.value = result.found
+            // A Find cleared (or replaced) while this pass ran must not come back with the old result.
+            findEval.value = result.found?.takeIf { it.target == findTarget.value }
             cityEval.value = result.city
         }
     }
@@ -488,7 +515,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun checkForUpdate(silent: Boolean = false) {
         val current = _update.value
         // ReadyToInstall is handled by the Activity directly (install retry), never re-checked here.
-        if (current is UpdateState.Checking || current is UpdateState.Downloading) return
+        if (current is UpdateState.Checking || current is UpdateState.Downloading) {
+            if (!silent) silentUpdateCheck = false // the user's own check joins a running automatic one and must be heard
+            return
+        }
         if (current is UpdateState.ReadyToInstall && current.apk.exists()) return
         silentUpdateCheck = silent
         lastUpdateAttemptMs = SystemClock.elapsedRealtime()
@@ -508,6 +538,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun downloadUpdate(remote: RemoteVersion) {
+        if (_update.value is UpdateState.Downloading) return // a second download would delete the first one's partial file
         _update.value = UpdateState.Downloading(0)
         viewModelScope.launch {
             _update.value = try {

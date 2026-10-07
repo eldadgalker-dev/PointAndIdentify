@@ -1,7 +1,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 1.0
+# Version 1.1
 # Runs the unit tests and builds an unsigned debug APK on every push and pull request that touches app code,
 # so a broken test or a compile error is reported before release.yml publishes a Release.
 # Needs no secrets: the debug build is signed with the automatically generated debug key.
@@ -38,6 +38,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:

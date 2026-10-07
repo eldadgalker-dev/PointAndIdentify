@@ -1,7 +1,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 1.2
+# Version 1.3
 # Builds all app data automatically and commits it to main:
 #   targets (OpenStreetMap, Overpass) -> elevation (Terrain Tiles, downloaded) -> terrain tiles -> manifest
 # Runs when the data tools change, monthly, and on manual run.
@@ -28,6 +28,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'   # a manual run on another branch must never push to main
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:

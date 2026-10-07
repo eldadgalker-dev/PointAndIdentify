@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -41,7 +41,9 @@ class BaroGpsFusion {
         val r = gpsSigmaM.coerceIn(AppConfig.ALT_GPS_SIGMA_MIN_M, AppConfig.ALT_GPS_SIGMA_MAX_M).pow(2)
         if (!initialized) {
             offsetM = z
-            varianceM2 = r
+            // Never start more certain than ALT_INITIAL_SIGMA_MIN_M: with a confident but wrong first fix the
+            // innovation gate would otherwise reject every correct fix for hours.
+            varianceM2 = maxOf(r, AppConfig.ALT_INITIAL_SIGMA_MIN_M.pow(2))
             lastUpdateMs = nowMs
             initialized = true
             return

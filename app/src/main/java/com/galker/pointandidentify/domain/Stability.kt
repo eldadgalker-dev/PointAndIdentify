@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -24,10 +24,13 @@ class SelectionStabilizer {
     private var challengerKey: String? = null
     private var challengerSinceMs = 0L
 
+    /** The untruncated list: a held target ranked below the displayed candidates is still inside the crosshair. */
+    private fun pool(raw: Selection): List<Candidate> = raw.all.ifEmpty { raw.candidates }
+
     fun stabilize(nowMs: Long, raw: Selection): Selection {
         val best = raw.best
         val bestKey = best?.let { keyOf(it) }
-        val heldNow = heldKey?.let { k -> raw.candidates.firstOrNull { keyOf(it.evaluation) == k && it.evaluation.visibility == Visibility.VISIBLE } }
+        val heldNow = heldKey?.let { k -> pool(raw).firstOrNull { keyOf(it.evaluation) == k && it.evaluation.visibility == Visibility.VISIBLE } }
         if (heldNow != null) {
             held = heldNow
             heldSeenMs = nowMs
@@ -55,7 +58,7 @@ class SelectionStabilizer {
         }
 
         // Another target is the best now: switch only when it is clearly better and stays so.
-        val bestCandidate = raw.candidates.firstOrNull { keyOf(it.evaluation) == bestKey }
+        val bestCandidate = pool(raw).firstOrNull { keyOf(it.evaluation) == bestKey }
         val clearlyBetter = bestCandidate != null && bestCandidate.score < heldNow.score * AppConfig.SELECTION_SWITCH_RATIO
         if (clearlyBetter) {
             if (challengerKey != bestKey) {
@@ -74,7 +77,7 @@ class SelectionStabilizer {
 
     private fun adopt(raw: Selection, key: String, nowMs: Long) {
         heldKey = key
-        held = raw.candidates.firstOrNull { keyOf(it.evaluation) == key }
+        held = pool(raw).firstOrNull { keyOf(it.evaluation) == key }
         heldSeenMs = nowMs
         challengerKey = null
     }

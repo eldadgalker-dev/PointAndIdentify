@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -75,7 +75,8 @@ object FindProjection {
 
     /**
      * Pixel offset (right, down) from the screen centre of a place deltaAzimuthDeg to the right and deltaElevationDeg above
-     * the camera axis; null when it is behind the camera. The preview (aspect PREVIEW_ASPECT, short side = hfovDeg) is scaled
+     * the camera axis; null when it is behind the camera. hfovDeg is the FULL sensor image short-side FOV, not the visible
+     * (cropped) one: the crop to the screen shape is applied here through the preview aspect. The preview (aspect PREVIEW_ASPECT, short side = hfovDeg) is scaled
      * to fill the screen, so one tangent unit = max(height, width / aspect) * aspect / (2 tan(hfov / 2)) * zoom pixels.
      */
     fun screenOffsetPx(
