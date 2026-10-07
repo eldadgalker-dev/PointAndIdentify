@@ -1,0 +1,6 @@
+# Version 1.0
+# Published data is hashed (data/manifest.json): it must never be rewritten with CRLF on Windows checkouts.
+# The seed copy of the targets file inside the app is byte-identical to data/targets.json.
+data/** -text
+app/src/main/assets/targets.json -text
+*.gz binary
