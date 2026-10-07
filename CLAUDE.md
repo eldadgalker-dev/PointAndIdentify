@@ -1,6 +1,6 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.2. This file is read automatically at the start of every session in this repository.
+Version 1.3. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
@@ -20,6 +20,7 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
    1. `release.yml`: on every app-code change in `main` (and manual). Builds a signed APK, version `point.versionBase` + run number, creates tag and GitHub Release with `PointAndIdentify.apk` + `version.json`. Needs the four `POINT_*` secrets.
    2. `data.yml`: on data-tool changes, monthly, manual. Builds targets (Overpass), downloads elevation, cuts tiles, commits `data/`. Its bot commits to `main`.
    3. `data-check.yml`: verifies `data/manifest.json` against the files.
+   4. `ci.yml`: on every push and pull request that touches app code, runs `gradle :app:testDebugUnitTest :app:assembleDebug` (no secrets). It runs in parallel with `release.yml` and does not block it.
 4. Signing key lives outside the repository (`%USERPROFILE%\PointAndIdentify-signing`). Never add keystores, passwords or tokens to the repository.
 5. License: BSD 3-Clause (`LICENSE.txt`). Data under `data/` and `app/src/main/assets/` keeps third-party licenses (OSM ODbL, Terrain Tiles attribution).
 
@@ -50,7 +51,7 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 ## 6. Backlog (agreed with the user, not implemented yet)
 
 1. Map mode on Google Maps SDK for Android (online only). Needs a Maps API key from the user, restricted to the package name and the SHA-1 of the release certificate. Layers: target markers coloured by visibility; field-of-view wedge and heading line; line of sight to the selected target; viewshed overlay computed from the DEM. Show the map when the camera elevation is below -55 deg and the camera view when above -35 deg (hysteresis). Unbind the camera in map mode to save battery.
-2. CI build and unit tests on every push (unsigned debug build), so compile errors surface before a release.
+2. Make `release.yml` wait for the unit tests (run `testDebugUnitTest` before the release build), so a failing test blocks a Release. `ci.yml` already runs the tests on every push.
 3. Verify the Terrain Tiles attribution wording in `LICENSE.txt` against their attribution document.
 4. First on-device test: confirm camera, sensors, overlay, update button; fix what fails.
 
