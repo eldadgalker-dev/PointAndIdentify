@@ -1,16 +1,16 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.5. This file is read automatically at the start of every session in this repository.
+Version 1.6. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
 
-1. Talk to the user in Hebrew, masculine form. Dry and professional: no praise, no preambles, no filler summaries.
-2. Always separate: verified fact / estimate / unknown. Never fill gaps by guessing.
-3. If a requested approach looks wrong, say so before executing.
-4. Ambiguous request: act on the most reasonable reading and state the assumption. Ask only when readings lead to materially different results.
-5. Do not send repository content to web searches or external tools without explicit approval (git/gh against this repository is approved).
-6. Right-to-left display: start every paragraph, list item and table cell with a Hebrew word, so the interface aligns it to the right. Never start a line with a command, file name, number or English term; place such items later in the line. Keep code and commands in code blocks (left-to-right).
+Language, tone, separation of fact from estimate and the right-to-left rule for chat replies are global rules (sections Communication with the user and Hebrew replies in `~/.claude/CLAUDE.md`). Not repeated here.
+
+1. If a requested approach looks wrong, say so before executing.
+2. Ambiguous request: act on the most reasonable reading and state the assumption. Ask only when readings lead to materially different results.
+3. Do not send repository content to web searches or external tools without explicit approval (git/gh against this repository is approved).
+4. Hebrew documents of this project (`README.md`, `docs/*.md`, `docs/index.html`) keep every paragraph, list item and table cell starting with a Hebrew word. Before committing new or changed text run `python ~/.claude/skills/global-rules-sync/audit.py lint FILE`. Existing lines stay unless the user asks for a cleanup.
 
 ## 2. Repository facts
 
@@ -55,10 +55,9 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 3. Verify the Terrain Tiles attribution wording in `LICENSE.txt` against their attribution document.
 4. First on-device test: confirm camera, sensors, overlay, update button; fix what fails.
 
-## 7. Global skills applied to this project
+## 7. Parameters for the global review and resource tools
 
-Global rules live in `~/.claude/CLAUDE.md` (Hebrew masculine and dry, RTL line starts, no data to servers in China, scripts before prose). This file adds to them and never weakens them. Skills in `~/.claude/skills`:
+Rules for external reviewers, token saving (`compact.py`, `minify.py`) and system resources are global (`~/.claude/CLAUDE.md`); this section holds only what is specific to this project. Full procedures: `EXTERNAL_REVIEW.md` in the repository root.
 
-1. External review (`external-reviewers`): full rules, reviewer table, setup and debate prompts are in `EXTERNAL_REVIEW.md` in the repository root. Project name `PointAndIdentify`. Plans and designs go to reviewers as text. Code goes out only after the user approves it in chat, as disjoint shards (no reviewer above 50% of the project) produced by `compact.py app tools -o OUT/s.txt --map OUT/map.json --project PointAndIdentify`. Never include `data/` (67 MB of generated tiles), keystores or workflow secrets.
-2. Compaction (`compact-for-reviewers`): run before any code leaves the machine and for large read-only files, per shard `python ~/.claude/skills/compact-for-reviewers/minify.py --map-in OUT/map.json --shard s_partN.txt -o OUT/s_partN.min.txt --map OUT/names_N.json`; for a large read-only file `minify.py FILE`. Never edit from minified text.
-3. Hebrew documents (`global-rules-sync`): before committing `README.md`, `docs/*.md` or `docs/index.html`, run `python ~/.claude/skills/global-rules-sync/audit.py lint FILE` for new or changed text. Existing lines stay as they are unless the user asks for a cleanup.
+1. Project name for every review tool: `PointAndIdentify`. Paths to shard: `app tools`.
+2. Never send `data/` (67 MB of generated tiles), keystores or workflow secrets.
