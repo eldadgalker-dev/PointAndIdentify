@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.data.db.TargetEntity
@@ -102,10 +102,10 @@ class TargetSelectorTest {
     @Test
     fun lookingDownHasHysteresis() {
         assertTrue(LookingDown.isLookingDown(false, -88.0))
-        assertTrue(LookingDown.isLookingDown(false, -6.3))   // more than 6 deg below the horizon
-        assertTrue(!LookingDown.isLookingDown(true, -2.0))
-        assertTrue(LookingDown.isLookingDown(true, -5.0))    // in between: keeps the previous mode
-        assertTrue(!LookingDown.isLookingDown(false, -5.0))
+        assertTrue(LookingDown.isLookingDown(false, -30.5))  // more than 30 deg below the horizon
+        assertTrue(!LookingDown.isLookingDown(true, -10.0))
+        assertTrue(LookingDown.isLookingDown(true, -28.0))   // in between: keeps the previous mode
+        assertTrue(!LookingDown.isLookingDown(false, -28.0))
     }
 
     @Test

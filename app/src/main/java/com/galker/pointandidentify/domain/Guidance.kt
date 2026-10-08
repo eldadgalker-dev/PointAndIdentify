@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -27,15 +27,14 @@ object PhonePose {
 }
 
 /**
- * When the current-city display replaces the normal target selection.
- * The camera axis, ray-cast against the terrain, decides: ground met near the observer = the user looks at the place
- * he stands in. The plain "below the horizon" rule is geometry-blind (from a mountain, 8 degrees down is a settlement
- * five kilometres away), so it only acts when the ray found no ground at all and the camera points steeply down.
+ * When the current-city display replaces the normal target selection:
+ *   - the camera points from CITY_MODE_BELOW_DEG (about -30 deg) down to straight down (-90 deg), or
+ *   - the camera axis, ray-cast against the terrain, meets the ground near the observer (aimNear), at any angle.
+ * Between the horizon and -30 deg the normal selection works, so a target far below a mountain is still found.
  */
 object CityMode {
 
-    fun active(lookingDown: Boolean, aimNear: Boolean, aimDistanceM: Double?, cameraElevationDeg: Double): Boolean =
-        aimNear || (lookingDown && aimDistanceM == null && cameraElevationDeg < AppConfig.CITY_BLIND_BELOW_DEG)
+    fun active(lookingDown: Boolean, aimNear: Boolean): Boolean = lookingDown || aimNear
 
     /** A visible target inside the crosshair that is not farther than the aimed ground point (plus a margin) wins. */
     fun yieldsToTarget(best: TargetEvaluation?, aimDistanceM: Double?): Boolean =
@@ -43,7 +42,7 @@ object CityMode {
             (aimDistanceM == null || best.distanceM <= aimDistanceM + AppConfig.CITY_YIELD_MARGIN_M)
 }
 
-/** Camera pointing well below the horizon (the street below, or a phone lying on a table). */
+/** Camera pointing steeply down, from about -30 deg to straight down (the ground below, or a phone lying on a table). */
 object LookingDown {
 
     /** Hysteresis between CITY_MODE_BELOW_DEG (enter) and CITY_MODE_EXIT_DEG (leave). */

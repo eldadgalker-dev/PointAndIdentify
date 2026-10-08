@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.20
+// Version 1.21
 package com.galker.pointandidentify.ui
 
 import kotlinx.coroutines.delay
@@ -250,7 +250,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     // Looking at the ground nearby shows the current place, unless a visible target is aimed at.
                     val yields = CityMode.yieldsToTarget(selection.best, aim)
-                    val cityMode = !findHere && CityMode.active(lookingDown, aimNear, aim, o.cameraElevationDeg) && !yields && city != null
+                    val cityMode = !findHere && CityMode.active(lookingDown, aimNear) && !yields && city != null
                     if (cityMode && city != null) selection = Selection(city, 0.0, listOf(Candidate(city, 0.0, 0.0)))
                     _ui.value = _ui.value.copy(
                         raised = raised,

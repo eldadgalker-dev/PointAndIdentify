@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.21
+// Version 1.22
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -88,9 +88,8 @@ object AppConfig {
     const val RAISED_ABOVE_DEG = -35.0        // deg, camera elevation above this = phone raised
 
     // ===== Parameters: current-city mode (camera pointing well below the horizon, e.g. the street below or a phone on a table) =====
-    const val CITY_MODE_BELOW_DEG = -6.0      // deg, camera elevation below this = show only the current city
-    const val CITY_MODE_EXIT_DEG = -4.0       // deg, camera elevation above this = leave city mode (hysteresis)
-    const val CITY_BLIND_BELOW_DEG = -30.0    // deg, below the CITY_MODE_BELOW_DEG rule alone only acts when the aim ray found no ground (no terrain data), and only this steeply down
+    const val CITY_MODE_BELOW_DEG = -30.0     // deg, camera elevation below this (down to -90) = show only the current city
+    const val CITY_MODE_EXIT_DEG = -26.0      // deg, camera elevation above this = leave city mode (hysteresis)
     const val CITY_YIELD_MARGIN_M = 200.0     // m, a visible target in the crosshair up to this much beyond the aimed ground point beats the current-city display
     const val AIM_MIN_EYE_ABOVE_GROUND_M = 0.5 // m, the aim ray starts at least this high above the terrain under the observer
     const val AIM_RAY_MAX_M = 5_000.0         // m, longest distance at which the camera axis is intersected with the terrain
@@ -180,7 +179,7 @@ object AppConfig {
         require(0.0 < CITY_AIM_RADIUS_M && CITY_AIM_RADIUS_M < CITY_AIM_EXIT_M && CITY_AIM_EXIT_M <= AIM_RAY_MAX_M) {
             "Invalid current-location circle radii"
         }
-        require(CITY_BLIND_BELOW_DEG < CITY_MODE_BELOW_DEG && CITY_YIELD_MARGIN_M >= 0) { "Invalid city-mode override parameters" }
+        require(CITY_YIELD_MARGIN_M >= 0 && CITY_MODE_EXIT_DEG < 0) { "Invalid city-mode parameters" }
         require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
         require(SELECTION_HOLD_MS >= 0 && SELECTION_LOST_MS >= 0 && SELECTION_SWITCH_RATIO in 0.0..1.0) { "Invalid selection stability parameters" }
         require(CITY_AZIMUTH_TOL_DEG > 0 && CITY_AZIMUTH_SWITCH_MARGIN_DEG >= 0) { "Invalid current-city azimuth parameters" }

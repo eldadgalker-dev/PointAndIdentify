@@ -1,9 +1,10 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
+import com.galker.pointandidentify.domain.LookingDown
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.domain.CityMode
 import com.galker.pointandidentify.domain.TargetEvaluation
@@ -23,24 +24,28 @@ class CityModeTest {
 
     @Test
     fun groundMetNearTheObserverShowsTheCurrentPlace() {
-        assertTrue(CityMode.active(lookingDown = false, aimNear = true, aimDistanceM = 300.0, cameraElevationDeg = -20.0))
+        assertTrue(CityMode.active(lookingDown = false, aimNear = true))
     }
 
     @Test
-    fun lookingDownFromAMountainDoesNotHideDistantTargets() {
-        // 8 degrees down from a summit: the ray meets no ground within the ray limit (aim = null), the old rule fired here.
-        assertFalse(CityMode.active(lookingDown = true, aimNear = false, aimDistanceM = null, cameraElevationDeg = -8.0))
+    fun steeplyDownShowsTheCurrentPlaceEvenWhenTheRayFindsFarGround() {
+        // -30 .. -90 deg is the current-location range (lookingDown is the hysteresis flag of that range).
+        assertTrue(CityMode.active(lookingDown = true, aimNear = false))
     }
 
     @Test
-    fun groundFarAwayDoesNotShowTheCurrentPlace() {
-        assertFalse(CityMode.active(lookingDown = true, aimNear = false, aimDistanceM = 4_000.0, cameraElevationDeg = -10.0))
+    fun aboveThirtyDegreesDownTheNormalSelectionWorks() {
+        // From a summit, 8 degrees down is a settlement kilometres away: neither rule fires.
+        assertFalse(CityMode.active(lookingDown = false, aimNear = false))
     }
 
     @Test
-    fun steeplyDownWithoutTerrainDataStillShowsTheCurrentPlace() {
-        // No terrain data: the ray cannot be cast, so a camera pointing steeply down is taken as "looking at the feet".
-        assertTrue(CityMode.active(lookingDown = true, aimNear = false, aimDistanceM = null, cameraElevationDeg = -60.0))
+    fun theRangeStartsAtMinusThirtyWithHysteresis() {
+        assertTrue(LookingDown.isLookingDown(false, -31.0))
+        assertTrue(LookingDown.isLookingDown(false, -90.0))
+        assertFalse(LookingDown.isLookingDown(false, -29.0))
+        assertTrue(LookingDown.isLookingDown(true, -28.0))   // between -30 and -26: keeps the previous mode
+        assertFalse(LookingDown.isLookingDown(true, -25.0))
     }
 
     @Test

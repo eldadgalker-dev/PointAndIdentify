@@ -1,9 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.22
+// Version 1.23
 package com.galker.pointandidentify.ui
 
+import android.widget.FrameLayout
+import com.google.android.material.snackbar.Snackbar
 import android.provider.Settings
 import android.net.Uri
 import android.content.Intent
@@ -414,6 +416,11 @@ class MainActivity : AppCompatActivity() {
         val builder = AlertDialog.Builder(this)
             .setPositiveButton(R.string.points_add) { _, _ -> showAddPoint() }
             .setNegativeButton(R.string.dialog_close, null)
+        if (points.isNotEmpty()) {
+            builder.setNeutralButton(R.string.btn_share) { _, _ ->
+                sharePlaces(R.string.share_subject_points, points.map { sharedPoint(it) })
+            }
+        }
         if (points.isEmpty()) {
             builder.setTitle(R.string.points_title).setMessage(R.string.points_empty)
         } else {
@@ -428,8 +435,17 @@ class MainActivity : AppCompatActivity() {
     private fun showPointActions(index: Int, point: PrivatePoint) {
         AlertDialog.Builder(this)
             .setTitle(point.name)
-            .setItems(arrayOf(getString(R.string.points_action_rename), getString(R.string.points_action_delete))) { _, which ->
-                if (which == 0) showRenamePoint(index, point) else confirmDeletePoint(index, point)
+            .setItems(
+                arrayOf(
+                    getString(R.string.points_action_rename), getString(R.string.points_action_delete),
+                    getString(R.string.points_action_share)
+                )
+            ) { _, which ->
+                when (which) {
+                    0 -> showRenamePoint(index, point)
+                    1 -> confirmDeletePoint(index, point)
+                    else -> sharePlaces(R.string.share_subject_points, listOf(sharedPoint(point)))
+                }
             }
             .setNegativeButton(R.string.dialog_close) { _, _ -> showPrivatePoints() }
             .show()
@@ -723,7 +739,7 @@ class MainActivity : AppCompatActivity() {
                 zoomLive = bound.cameraInfo.zoomState.also { it.observe(this, zoomObserver) }
             } catch (e: Exception) {
                 Log.e(TAG, "Camera bind failed", e)
-                Toast.makeText(this, R.string.camera_error, Toast.LENGTH_SHORT).show()
+                toast(getString(R.string.camera_error))
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -791,17 +807,13 @@ class MainActivity : AppCompatActivity() {
                     } finally {
                         runCatching { image.close() } // export() closes it too; closing twice is harmless
                     }
-                    Toast.makeText(
-                        this@MainActivity,
-                        if (ok) R.string.photo_saved else R.string.photo_save_error,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    toast(getString(if (ok) R.string.photo_saved else R.string.photo_save_error))
                 }
             }
 
             override fun onError(exception: ImageCaptureException) {
                 Log.e(TAG, "Capture failed", exception)
-                runOnUiThread { Toast.makeText(this@MainActivity, R.string.capture_error, Toast.LENGTH_SHORT).show() }
+                runOnUiThread { toast(getString(R.string.capture_error)) }
             }
         })
     }
@@ -949,11 +961,30 @@ class MainActivity : AppCompatActivity() {
                 )
             }.joinToString("\n\n")
         }
-        AlertDialog.Builder(this)
+        val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.identify_title, s.zoomRatio))
             .setMessage(message)
             .setPositiveButton(R.string.dialog_close, null)
-            .show()
+        if (s.candidates.isNotEmpty()) {
+            dialog.setNeutralButton(R.string.btn_share) { _, _ ->
+                val places = s.candidates.map { c ->
+                    val e = c.evaluation
+                    val vis = getString(
+                        when (e.visibility) {
+                            Visibility.VISIBLE -> R.string.identify_visible
+                            Visibility.OBSTRUCTED -> R.string.identify_hidden
+                            Visibility.UNKNOWN -> R.string.identify_unknown
+                        }
+                    )
+                    SharedPlace(
+                        e.target.name, getString(kindLabel(e.target.targetKind)), e.target.latitude, e.target.longitude,
+                        getString(R.string.share_details, fmt("%.1f", e.distanceM / 1000.0), vis)
+                    )
+                }
+                sharePlaces(R.string.share_subject_targets, places)
+            }
+        }
+        dialog.show()
     }
 
     private fun buildLiveContent(state: UiState): OverlayContent {
@@ -1029,11 +1060,11 @@ class MainActivity : AppCompatActivity() {
             getString(R.string.info_observer_pos, fix?.let { fmt("%.5f, %.5f", it.lat, it.lon) } ?: none),
             getString(
                 R.string.info_observer_acc,
-                fix?.let { "±" + getString(R.string.info_meters, it.horizontalAccuracyM.roundToInt()) } ?: none
+                fix?.let { "±" + metersText(it.horizontalAccuracyM.roundToInt()) } ?: none
             ),
             getString(
                 R.string.info_height_angle, altText(state.observerEyeAltM),
-                state.cameraElevationDeg?.let { fmt("%+.1f°", it) } ?: none
+                state.cameraElevationDeg?.let { signedText("%+.1f°", it) } ?: none
             )
         )
         val position = if (state.raised && !state.cityMode) t?.let { fmt("%.5f, %.5f", it.target.latitude, it.target.longitude) } else null
@@ -1048,10 +1079,10 @@ class MainActivity : AppCompatActivity() {
                 t?.let { fmt("%.2f", it.distanceM / 1000.0) + " " + getString(R.string.unit_km) } ?: none
             ),
             getString(R.string.info_geometry_bearing, t?.let { fmt("%.1f°", it.bearingDeg) } ?: none),
-            getString(R.string.info_geometry_angle, t?.elevationAngleDeg?.let { fmt("%+.2f°", it) } ?: none),
+            getString(R.string.info_geometry_angle, t?.elevationAngleDeg?.let { signedText("%+.2f°", it) } ?: none),
             getString(
                 R.string.info_clearance,
-                t?.minClearanceM?.let { getString(R.string.info_meters, it.roundToInt()) } ?: none
+                t?.minClearanceM?.let { metersText(it.roundToInt()) } ?: none
             )
         )
         return listOf(observer, target, geometry).map { it.joinToString("\n") }
@@ -1061,7 +1092,7 @@ class MainActivity : AppCompatActivity() {
     private fun fmt(pattern: String, vararg args: Any): String = String.format(java.util.Locale.US, pattern, *args)
 
     private fun altText(altM: Double?): String =
-        altM?.let { getString(R.string.info_meters, it.roundToInt()) } ?: getString(R.string.info_none)
+        altM?.let { metersText(it.roundToInt()) } ?: getString(R.string.info_none)
 
     private fun kindLabel(kind: TargetKind): Int = when (kind) {
         TargetKind.SETTLEMENT -> R.string.kind_settlement
@@ -1171,12 +1202,71 @@ class MainActivity : AppCompatActivity() {
         startActivity(updater.installIntent(apk))
     }
 
-    private fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+    /**
+     * In-app message. A system toast sits at the bottom of the screen and covers the bottom button row, so the message is a
+     * Snackbar pinned to the TOP, below the status block, where it hides nothing that is needed while aiming.
+     */
+    private fun toast(msg: String) {
+        if (isFinishing || isDestroyed) return
+        val bar = Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG)
+        val lp = bar.view.layoutParams
+        if (lp is FrameLayout.LayoutParams) {
+            lp.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
+            lp.topMargin = (binding.overlayView.topInsetPx + MESSAGE_TOP_GAP_DP * resources.displayMetrics.density).toInt()
+            bar.view.layoutParams = lp
+        }
+        bar.view.findViewById<TextView>(com.google.android.material.R.id.snackbar_text)?.maxLines = MESSAGE_MAX_LINES
+        bar.show()
+    }
+
+    /** True when the UI language is right-to-left (Hebrew). */
+    private val rtlUi: Boolean get() = resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL
+
+    /**
+     * Number with a sign. Hebrew writes a negative number with the minus AFTER it ("30-"); the left-to-right marks keep that
+     * visual order inside right-to-left text. English keeps the usual leading minus.
+     */
+    private fun signedText(pattern: String, value: Double): String {
+        val s = fmt(pattern, value)
+        return if (rtlUi && s.startsWith("-")) LRM + s.substring(1) + "-" + LRM else s
+    }
+
+    /** Metres with the unit; a negative value gets the minus after the number in Hebrew ("430- מ׳"). */
+    private fun metersText(meters: Int): String {
+        val text = getString(R.string.info_meters, abs(meters))
+        return when {
+            meters >= 0 -> text
+            rtlUi -> text.replaceFirst(abs(meters).toString(), LRM + abs(meters) + "-" + LRM)
+            else -> "-$text"
+        }
+    }
+
+    // ===== Copy / send places =====
+
+    /** Copies the places to the clipboard and opens the system chooser (e-mail or any other app). */
+    private fun sharePlaces(subjectRes: Int, places: List<SharedPlace>) {
+        if (places.isEmpty()) return
+        val text = PlaceShare.text(places)
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText(getString(subjectRes), text))
+        toast(getString(R.string.share_copied))
+        val send = Intent(Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(Intent.EXTRA_SUBJECT, getString(subjectRes))
+            putExtra(Intent.EXTRA_TEXT, text)
+        }
+        startActivity(Intent.createChooser(send, getString(R.string.share_chooser)))
+    }
+
+    private fun sharedPoint(p: PrivatePoint) = SharedPlace(p.name, getString(R.string.kind_private), p.lat, p.lon)
 
     private fun updater() = (application as com.galker.pointandidentify.PointApp).updateManager
 
     companion object {
         private const val TAG = "MainActivity"
+        private const val LRM = "\u200E"          // left-to-right mark: keeps "430-" in visual order inside Hebrew text
+        private const val MESSAGE_TOP_GAP_DP = 72f  // in-app messages sit this far below the status block
+        private const val MESSAGE_MAX_LINES = 5
         private const val EXIT_KILL_DELAY_MS = 1_500L
         private const val EXIT_DIALOG_TOP_FRACTION = 0.12f // exit dialog top edge, as a fraction of the screen height
         private const val STATUS_MARGIN_DP = 8f            // margin of the status block (activity_main.xml)
