@@ -1,6 +1,6 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.4. This file is read automatically at the start of every session in this repository.
+Version 1.5. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
@@ -59,6 +59,6 @@ Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing o
 
 Global rules live in `~/.claude/CLAUDE.md` (Hebrew masculine and dry, RTL line starts, no data to servers in China, scripts before prose). This file adds to them and never weakens them. Skills in `~/.claude/skills`:
 
-1. External review (`external-reviewers`): full rules, reviewer table, setup and debate prompts are in `EXTERNAL_REVIEW.md` in the repository root. Project name `PointAndIdentify`. Plans and designs go to reviewers as text. Code goes out only after the user approves it in chat, as disjoint shards (no reviewer above 50% of the project), with `--paths app tools`. Never include `data/` (67 MB of generated tiles), keystores or workflow secrets.
-2. Compaction (`compact-for-reviewers`): run before any code leaves the machine and for large read-only files, e.g. `python ~/.claude/skills/compact-for-reviewers/compact.py app/src/main -o OUT.txt --map MAP.json`. Never edit from compacted text.
+1. External review (`external-reviewers`): full rules, reviewer table, setup and debate prompts are in `EXTERNAL_REVIEW.md` in the repository root. Project name `PointAndIdentify`. Plans and designs go to reviewers as text. Code goes out only after the user approves it in chat, as disjoint shards (no reviewer above 50% of the project) produced by `compact.py app tools -o OUT/s.txt --map OUT/map.json --project PointAndIdentify`. Never include `data/` (67 MB of generated tiles), keystores or workflow secrets.
+2. Compaction (`compact-for-reviewers`): run before any code leaves the machine and for large read-only files, per shard `python ~/.claude/skills/compact-for-reviewers/minify.py --map-in OUT/map.json --shard s_partN.txt -o OUT/s_partN.min.txt --map OUT/names_N.json`; for a large read-only file `minify.py FILE`. Never edit from minified text.
 3. Hebrew documents (`global-rules-sync`): before committing `README.md`, `docs/*.md` or `docs/index.html`, run `python ~/.claude/skills/global-rules-sync/audit.py lint FILE` for new or changed text. Existing lines stay as they are unless the user asks for a cleanup.
