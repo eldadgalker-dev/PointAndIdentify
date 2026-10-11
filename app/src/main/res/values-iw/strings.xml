@@ -7,9 +7,6 @@
     <string name="status_no_target">אין יעד גלוי בכיוון</string>
     <string name="status_azimuth">אזימוט: %1$d°</string>
     <string name="target_visible_details">טווח: %1$.1f ק״מ\nאזימוט: %2$d°</string>
-    <string name="target_hidden_name">מוסתר טופוגרפית: %1$s</string>
-    <string name="target_hidden_details">הסתרה בטווח %1$.1f ק״מ\nאזימוט: %2$d°</string>
-    <string name="target_unknown_name">אין נתוני שטח: %1$s</string>
     <string name="photo_target_prefix">מטרה: %1$s</string>
     <string name="photo_footer">תאריך ושעה: %1$s\nאפליקציית PointAndIdentify גרסה %2$s</string>
 
@@ -53,7 +50,6 @@
     <string name="compass_status_ok_plain">מצפן: תקין</string>
     <string name="compass_status_bad">מצפן: לא תקין – ראה הודעה</string>
     <string name="compass_title">בדיקת מצפן</string>
-    <string name="compass_msg_ok">המצפן תקין (שדה מגנטי %1$.0f µT, סטיית כיוון %2$.1f°).</string>
     <string name="compass_msg_no_sensor">לא התקבלו נתונים מחיישן המצפן. הכיוון והזיהוי לא יהיו אמינים.</string>
     <string name="compass_msg_uncalibrated">המצפן לא מכויל. הנע את הטלפון בתנועת 8 באוויר, ובדוק שוב.</string>
     <string name="compass_msg_interference">עוצמת השדה המגנטי (%1$.0f µT) מחוץ לטווח הצפוי (%2$.0f–%3$.0f µT). התרחק ממתכת, מגנטים ומכשירי חשמל, ובדוק שוב.</string>
@@ -67,7 +63,6 @@
     <string name="data_offline">מצב לא מקוון – נתונים שמורים בלבד</string>
 
     <string name="btn_capture">צילום</string>
-    <string name="btn_update">עדכון</string>
     <string name="btn_exit">יציאה</string>
     <string name="btn_settings">הגדרות</string>
     <string name="btn_help">עזרה</string>

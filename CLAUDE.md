@@ -1,6 +1,6 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.6. This file is read automatically at the start of every session in this repository.
+Version 1.7. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
@@ -57,7 +57,7 @@ Language, tone, separation of fact from estimate and the right-to-left rule for 
 
 ## 7. Parameters for the global review and resource tools
 
-Rules for external reviewers, token saving (`compact.py`, `minify.py`) and system resources are global (`~/.claude/CLAUDE.md`); this section holds only what is specific to this project. Full procedures: `EXTERNAL_REVIEW.md` in the repository root.
+Rules for external reviewers, token saving (`compact.py`, `minify.py`) and system resources are global (`~/.claude/CLAUDE.md`); this section holds only what is specific to this project. Full procedures: `~/.claude/review-kit/review-rules-full.md`. The guide and the kit are not kept in the repository (global decision 2026-10-11); only `REVIEW_LOG.md` stays.
 
 1. Project name for every review tool: `PointAndIdentify`. Paths to shard: `app tools`.
 2. Never send `data/` (67 MB of generated tiles), keystores or workflow secrets.

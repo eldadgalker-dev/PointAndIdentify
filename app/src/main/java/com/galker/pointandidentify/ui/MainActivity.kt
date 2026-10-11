@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.23
+// Version 1.24
 package com.galker.pointandidentify.ui
 
 import android.widget.FrameLayout
@@ -1231,7 +1231,7 @@ class MainActivity : AppCompatActivity() {
         return if (rtlUi && s.startsWith("-")) LRM + s.substring(1) + "-" + LRM else s
     }
 
-    /** Metres with the unit; a negative value gets the minus after the number in Hebrew ("430- מ׳"). */
+    /** Metres with the unit; in right-to-left UI a negative value gets the minus after the number ("430-" then the unit). */
     private fun metersText(meters: Int): String {
         val text = getString(R.string.info_meters, abs(meters))
         return when {

@@ -7,9 +7,6 @@
     <string name="status_no_target">No visible target in this direction</string>
     <string name="status_azimuth">Azimuth: %1$d°</string>
     <string name="target_visible_details">Range: %1$.1f km\nAzimuth: %2$d°</string>
-    <string name="target_hidden_name">%1$s (hidden by terrain)</string>
-    <string name="target_hidden_details">Obstructed at %1$.1f km\nAzimuth: %2$d°</string>
-    <string name="target_unknown_name">%1$s (no terrain data)</string>
     <string name="photo_target_prefix">Target: %1$s</string>
     <string name="photo_footer">%1$s\nPointAndIdentify %2$s</string>
 
@@ -53,7 +50,6 @@
     <string name="compass_status_ok_plain">Compass: OK</string>
     <string name="compass_status_bad">Compass: not OK – see message</string>
     <string name="compass_title">Compass check</string>
-    <string name="compass_msg_ok">The compass is OK (magnetic field %1$.0f µT, heading deviation %2$.1f°).</string>
     <string name="compass_msg_no_sensor">No data from the compass sensor. Heading and identification will not be reliable.</string>
     <string name="compass_msg_uncalibrated">The compass is not calibrated. Move the phone in a figure-8 motion in the air, then check again.</string>
     <string name="compass_msg_interference">The magnetic field strength (%1$.0f µT) is outside the expected range (%2$.0f–%3$.0f µT). Move away from metal, magnets and electrical devices, then check again.</string>
@@ -67,7 +63,6 @@
     <string name="data_offline">Offline mode – stored data only</string>
 
     <string name="btn_capture">CAPT</string>
-    <string name="btn_update">Update</string>
     <string name="btn_exit">Exit</string>
     <string name="btn_settings">Settings</string>
     <string name="btn_help">Help</string>
