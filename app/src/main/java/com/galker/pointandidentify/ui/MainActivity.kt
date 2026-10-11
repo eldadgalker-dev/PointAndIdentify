@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.24
+// Version 1.25
 package com.galker.pointandidentify.ui
 
 import android.widget.FrameLayout
@@ -394,7 +394,7 @@ class MainActivity : AppCompatActivity() {
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
                 val value = input.text.toString().trim().replace(',', '.').toDoubleOrNull()
                 if (value == null || value < 0.0 || value > AppConfig.OBSERVER_HEIGHT_MAX_M) {
-                    toast(getString(R.string.observer_height_invalid, AppConfig.OBSERVER_HEIGHT_MAX_M.toInt()))
+                    toast(getString(R.string.observer_height_invalid, AppConfig.OBSERVER_HEIGHT_MAX_M.toInt()), dialog.window?.decorView)
                 } else {
                     UserSettings.setObserverHeightM(this, value)
                     vm.refreshTargets() // visibility depends on the height
@@ -476,7 +476,7 @@ class MainActivity : AppCompatActivity() {
             dialog.getButton(DialogInterface.BUTTON_POSITIVE).setOnClickListener {
                 val name = input.text.toString().trim()
                 if (name.isEmpty() || name.length > MAX_POINT_NAME_LENGTH) {
-                    toast(getString(R.string.points_invalid_name))
+                    toast(getString(R.string.points_invalid_name), dialog.window?.decorView)
                 } else {
                     privateStore().rename(index, name)
                     vm.refreshTargets()
@@ -536,9 +536,9 @@ class MainActivity : AppCompatActivity() {
                 if (name.isEmpty() || name.length > MAX_POINT_NAME_LENGTH ||
                     lat == null || lon == null || lat !in -90.0..90.0 || lon !in -180.0..180.0
                 ) {
-                    toast(getString(R.string.points_invalid))
+                    toast(getString(R.string.points_invalid), dialog.window?.decorView)
                 } else if (!privateStore().add(PrivatePoint(name, lat, lon))) {
-                    toast(getString(R.string.points_limit, AppConfig.PRIVATE_POINTS_MAX))
+                    toast(getString(R.string.points_limit, AppConfig.PRIVATE_POINTS_MAX), dialog.window?.decorView)
                 } else {
                     vm.refreshTargets()
                     toast(getString(R.string.points_saved))
@@ -1206,13 +1206,14 @@ class MainActivity : AppCompatActivity() {
      * In-app message. A system toast sits at the bottom of the screen and covers the bottom button row, so the message is a
      * Snackbar pinned to the TOP, below the status block, where it hides nothing that is needed while aiming.
      */
-    private fun toast(msg: String) {
+    private fun toast(msg: String, host: View? = null) {
         if (isFinishing || isDestroyed) return
-        val bar = Snackbar.make(binding.root, msg, Snackbar.LENGTH_LONG)
+        // A dialog is a separate window above this one: a message about a dialog that stays open is attached to the dialog.
+        val bar = Snackbar.make(host ?: binding.root, msg, Snackbar.LENGTH_LONG)
         val lp = bar.view.layoutParams
         if (lp is FrameLayout.LayoutParams) {
             lp.gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            lp.topMargin = (binding.overlayView.topInsetPx + MESSAGE_TOP_GAP_DP * resources.displayMetrics.density).toInt()
+            lp.topMargin = (binding.overlayView.top + binding.overlayView.topInsetPx + MESSAGE_TOP_GAP_DP * resources.displayMetrics.density).toInt()
             bar.view.layoutParams = lp
         }
         bar.view.findViewById<TextView>(com.google.android.material.R.id.snackbar_text)?.maxLines = MESSAGE_MAX_LINES
@@ -1228,6 +1229,8 @@ class MainActivity : AppCompatActivity() {
      */
     private fun signedText(pattern: String, value: Double): String {
         val s = fmt(pattern, value)
+        val unsigned = s.trimStart('-', '+')
+        if (unsigned.none { it in '1'..'9' }) return unsigned // a value that rounds to zero has no sign ("0.0", not "0.0-")
         return if (rtlUi && s.startsWith("-")) LRM + s.substring(1) + "-" + LRM else s
     }
 
