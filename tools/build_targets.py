@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 3.3
+# Version 3.4
 """Builds data/targets.json (settlements + aimable landmarks) from OpenStreetMap (Overpass API).
 
 Scope
@@ -181,7 +181,7 @@ def parse_metres(value):
     text = str(value).strip().lower()
     if "ft" in text or "'" in text:
         return None
-    m = re.match(r"^-?\d+(\.\d+)?", text.replace(",", "."))
+    m = re.match(r"^-?\d+(\.\d+)?(?=\s*(m|meters?|metres?)?$)", text.replace(",", "."))
     if not m:
         return None
     v = float(m.group(0))

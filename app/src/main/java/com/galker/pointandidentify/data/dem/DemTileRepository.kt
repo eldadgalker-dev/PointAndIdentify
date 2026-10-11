@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.2
+// Version 2.3
 package com.galker.pointandidentify.data.dem
 
 import android.content.Context
@@ -197,9 +197,14 @@ class DemTileRepository(
                 tileDir.listFiles { f -> f.name.startsWith("${entry.key}_") }?.forEach { it.delete() }
                 val tmp = File(tileDir, "${entry.key}.tmp")
                 tmp.writeBytes(raw)
-                tmp.renameTo(cachedFile(entry))
-                parseKey(entry.key)?.let { memory.remove(it) }
-                true
+                if (tmp.renameTo(cachedFile(entry))) {
+                    parseKey(entry.key)?.let { memory.remove(it) }
+                    true
+                } else {
+                    Log.e(TAG, "Could not finalize tile ${entry.key}")
+                    tmp.delete()
+                    false
+                }
             }
         }
     } catch (e: CancellationException) {

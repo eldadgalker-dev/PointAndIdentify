@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.location
 
 import com.galker.pointandidentify.config.AppConfig
@@ -47,7 +47,11 @@ class PositionFilter {
         varianceM2 += speed * speed * dtSeconds * dtSeconds
         val gain = varianceM2 / (varianceM2 + r)
         lat += gain * (measuredLat - lat)
-        lon += gain * (measuredLon - lon)
+        // Shortest signed longitude difference, so a fix across the antimeridian pulls toward it, not across the globe.
+        var dLon = measuredLon - lon
+        if (dLon > 180.0) dLon -= 360.0 else if (dLon < -180.0) dLon += 360.0
+        lon += gain * dLon
+        if (lon > 180.0) lon -= 360.0 else if (lon < -180.0) lon += 360.0
         varianceM2 *= (1.0 - gain)
         val reported = max(sqrt(varianceM2), 0.5 * measurementSigma)
         return FilteredPosition(lat, lon, max(reported, AppConfig.FILTER_MIN_ACCURACY_M))
