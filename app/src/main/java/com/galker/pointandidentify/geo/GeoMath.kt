@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.geo
 
 import com.galker.pointandidentify.config.AppConfig
@@ -73,12 +73,12 @@ object GeoMath {
      */
     fun lonRanges(lon: Double, halfWidthDeg: Double): List<Pair<Double, Double>> {
         if (halfWidthDeg >= 180.0) return listOf(-180.0 to 180.0)
-        val from = lon - halfWidthDeg
-        val to = lon + halfWidthDeg
+        val lo = lon - halfWidthDeg
+        val hi = lon + halfWidthDeg
         return when {
-            from < -180.0 -> listOf(-180.0 to to, (from + 360.0) to 180.0)
-            to > 180.0 -> listOf(from to 180.0, -180.0 to (to - 360.0))
-            else -> listOf(from to to)
+            lo < -180.0 -> listOf(-180.0 to hi, (lo + 360.0) to 180.0)
+            hi > 180.0 -> listOf(lo to 180.0, -180.0 to (hi - 360.0))
+            else -> listOf(lo to hi)
         }
     }
 }

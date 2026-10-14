@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.geo.GeoMath
@@ -16,7 +16,7 @@ class LonRangesTest {
 
     @Test
     fun boxAcrossEastAntimeridianIsSplit() {
-        assertEquals(listOf(179.5 to 180.0, -180.0 to -179.5), GeoMath.lonRanges(179.75, 0.75))
+        assertEquals(listOf(179.0 to 180.0, -180.0 to -179.5), GeoMath.lonRanges(179.75, 0.75))
     }
 
     @Test
