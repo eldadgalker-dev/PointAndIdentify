@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.geo
 
 import com.galker.pointandidentify.config.AppConfig
@@ -66,4 +66,19 @@ object GeoMath {
         meters / (METERS_PER_DEG_LAT * cos(atLat * DEG_TO_RAD))
 
     fun metersToLatDeg(meters: Double): Double = meters / METERS_PER_DEG_LAT
+
+    /**
+     * Longitude intervals [from, to] covering lon +- halfWidthDeg, split in two when the span crosses the antimeridian
+     * (a plain BETWEEN would miss the targets on the other side of +-180). A span of 360 deg or more covers everything.
+     */
+    fun lonRanges(lon: Double, halfWidthDeg: Double): List<Pair<Double, Double>> {
+        if (halfWidthDeg >= 180.0) return listOf(-180.0 to 180.0)
+        val from = lon - halfWidthDeg
+        val to = lon + halfWidthDeg
+        return when {
+            from < -180.0 -> listOf(-180.0 to to, (from + 360.0) to 180.0)
+            to > 180.0 -> listOf(from to 180.0, -180.0 to (to - 360.0))
+            else -> listOf(from to to)
+        }
+    }
 }
