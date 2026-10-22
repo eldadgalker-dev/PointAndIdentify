@@ -1,6 +1,6 @@
 # PointAndIdentify - instructions for Claude Code
 
-Version 1.7. This file is read automatically at the start of every session in this repository.
+Version 1.8. This file is read automatically at the start of every session in this repository.
 Full design history and decisions: `docs/IMPLEMENTATION_NOTES.md`. User-facing overview: `README.md`.
 
 ## 1. Communication
@@ -9,8 +9,9 @@ Language, tone, separation of fact from estimate and the right-to-left rule for 
 
 1. If a requested approach looks wrong, say so before executing.
 2. Ambiguous request: act on the most reasonable reading and state the assumption. Ask only when readings lead to materially different results.
-3. Do not send repository content to web searches or external tools without explicit approval (git/gh against this repository is approved).
+3. Never send secrets, keys, keystores, workflow secrets or `data/` to web searches or external tools (git/gh against this repository is approved). External reviewers and code sends are covered by the user's daily approval (one yes per computer and day, recorded by `daily_report.py --confirm`) and go through `~/.claude/review-kit/review.py` as disjoint shards, per the global rules.
 4. Hebrew documents of this project (`README.md`, `docs/*.md`, `docs/index.html`) keep every paragraph, list item and table cell starting with a Hebrew word. Before committing new or changed text run `python ~/.claude/skills/global-rules-sync/audit.py lint FILE`. Existing lines stay unless the user asks for a cleanup.
+5. Other global sections that apply here and are not repeated: Morning routine; Development rounds (a new zip per round in `versions/`, read saved settings first, check global updates); Maximal use of subagents and models; and the closing models line of every report (the report template in step 4.6 must end with it).
 
 ## 2. Repository facts
 
@@ -35,6 +36,7 @@ Language, tone, separation of fact from estimate and the right-to-left rule for 
 
 ## 4. Work loop (run it without waiting for the user)
 
+0. Before the loop: the first action of each day, before any other instruction, is the global morning routine "פתח ציר" (`python ~/.claude/review-kit/morning.py`; a hook enforces it). At the start of each development round run `python ~/.claude/review-kit/auto_update.py --force` and read any changed global rule files.
 1. Start: `git pull --rebase origin main` (the data bot commits to `main`).
 2. Change the code. Local checks that always work: `python -m py_compile tools/*.py` and `python tools/verify_manifest.py`. If an Android SDK and `gradlew` are present, also `./gradlew :app:testDebugUnitTest :app:assembleDebug`.
 3. Commit with a clear English message and `git push origin main`.
