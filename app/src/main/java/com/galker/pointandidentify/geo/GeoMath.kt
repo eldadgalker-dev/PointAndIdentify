@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.4
+// Version 1.5
 package com.galker.pointandidentify.geo
 
 import com.galker.pointandidentify.config.AppConfig
@@ -64,6 +64,15 @@ object GeoMath {
     /** Degrees of longitude spanned by a metric distance at the given latitude. */
     fun metersToLonDeg(meters: Double, atLat: Double): Double =
         meters / (METERS_PER_DEG_LAT * cos(atLat * DEG_TO_RAD))
+
+    /**
+     * Point at [distanceM] along [bearingDeg] from (lat, lon), flat-earth approximation: the error is far below the
+     * DEM cell for the few kilometres of the aim ray. Returns (lat, lon).
+     */
+    fun destination(lat: Double, lon: Double, bearingDeg: Double, distanceM: Double): Pair<Double, Double> {
+        val az = Math.toRadians(bearingDeg)
+        return (lat + metersToLatDeg(distanceM * Math.cos(az))) to (lon + metersToLonDeg(distanceM * Math.sin(az), lat))
+    }
 
     fun metersToLatDeg(meters: Double): Double = meters / METERS_PER_DEG_LAT
 

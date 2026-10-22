@@ -1,9 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.25
+// Version 1.26
 package com.galker.pointandidentify.ui
 
+import com.galker.pointandidentify.geo.GeoMath
+import com.galker.pointandidentify.domain.FixSource
 import android.widget.FrameLayout
 import com.google.android.material.snackbar.Snackbar
 import android.provider.Settings
@@ -826,6 +828,7 @@ class MainActivity : AppCompatActivity() {
         val status = StringBuilder(
             getString(R.string.data_status, state.tiles.available, state.tiles.required, state.targetsCount)
         )
+        accuracyLine(state)?.let { status.append('\n').append(it) }
         status.append('\n').append(compassStatusText(state.compass))
         if (state.offline) status.append('\n').append(getString(R.string.data_offline))
         if (!state.compassCalibrated) status.append('\n').append(getString(R.string.compass_uncalibrated))
@@ -940,6 +943,34 @@ class MainActivity : AppCompatActivity() {
         toast(getString(R.string.find_started, place.name))
     }
 
+    // ===== Accuracy and aim point =====
+
+    /** Position source, reported accuracy, satellites in the fix and heading error: how far the pointing can be trusted. */
+    private fun accuracyLine(state: UiState): String? {
+        val fix = state.fix ?: return null
+        val source = getString(if (fix.source == FixSource.GPS) R.string.source_gps else R.string.source_system)
+        val satellites = fix.satellitesUsed?.let { getString(R.string.satellites_n, it) } ?: getString(R.string.info_none)
+        val heading = state.headingSigmaDeg?.roundToInt()?.toString() ?: getString(R.string.info_none)
+        return getString(R.string.status_accuracy, fix.horizontalAccuracyM.roundToInt(), source, satellites, heading)
+    }
+
+    /** Ground point where the camera axis meets the terrain (from the observer position, azimuth and the ray cast), or null. */
+    private fun aimPoint(s: UiState): Triple<Double, Double, Double>? {
+        val fix = s.fix ?: return null
+        val az = s.azimuthDeg ?: return null
+        val d = s.aimDistanceM ?: return null
+        val (lat, lon) = GeoMath.destination(fix.lat, fix.lon, az, d)
+        return Triple(lat, lon, d)
+    }
+
+    private fun aimPointText(s: UiState): String? = aimPoint(s)?.let { (lat, lon, d) ->
+        getString(R.string.aim_point_line, fmt("%.5f, %.5f", lat, lon), d.roundToInt())
+    }
+
+    private fun aimPointPlace(s: UiState): SharedPlace? = aimPoint(s)?.let { (lat, lon, d) ->
+        SharedPlace(getString(R.string.aim_point), null, lat, lon, getString(R.string.aim_point_distance, d.roundToInt()))
+    }
+
     // ===== Identify =====
 
     /** Lists the targets inside the crosshair window (ranked), so the pointed target can be confirmed. */
@@ -963,9 +994,9 @@ class MainActivity : AppCompatActivity() {
         }
         val dialog = AlertDialog.Builder(this)
             .setTitle(getString(R.string.identify_title, s.zoomRatio))
-            .setMessage(message)
+            .setMessage(aimPointText(s)?.let { it + "\n\n" + message } ?: message)
             .setPositiveButton(R.string.dialog_close, null)
-        if (s.candidates.isNotEmpty()) {
+        if (s.candidates.isNotEmpty() || aimPoint(s) != null) {
             dialog.setNeutralButton(R.string.btn_share) { _, _ ->
                 val places = s.candidates.map { c ->
                     val e = c.evaluation
@@ -981,7 +1012,7 @@ class MainActivity : AppCompatActivity() {
                         getString(R.string.share_details, fmt("%.1f", e.distanceM / 1000.0), vis)
                     )
                 }
-                sharePlaces(R.string.share_subject_targets, places)
+                sharePlaces(R.string.share_subject_targets, listOfNotNull(aimPointPlace(s)) + places)
             }
         }
         dialog.show()

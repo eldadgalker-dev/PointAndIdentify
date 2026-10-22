@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.22
+// Version 1.23
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -133,6 +133,16 @@ object AppConfig {
     // ===== Parameters: location =====
     const val LOCATION_INTERVAL_MS = 1_000L   // fused provider interval (was 2 s; the position filter weights every fix)
     const val LOCATION_LAST_FIX_MAX_AGE_MS = 120_000L // a cached last location older than this is not used as the first fix
+    const val LOCATION_SOURCE_MAX_AGE_MS = 5_000L // a fix older than this is not offered by its source
+    const val GPS_OVERRIDES_SYSTEM_RATIO = 0.7  // the native GNSS fix replaces the phone's (system) fix only when its accuracy is at most this fraction of it
+    const val FIX_TRUST_RAW_ACCURACY_M = 6.0    // m, a fix at least this accurate is used exactly as the phone reports it (unfiltered)
+    const val HEADING_SIGMA_MIN_DEG = 1.5       // deg, lower bound of the heading error used for the pointing uncertainty
+    const val HEADING_SIGMA_MAX_DEG = 30.0      // deg, upper bound
+    const val HEADING_SIGMA_DEFAULT_DEG = 4.0   // deg, heading error when the sensor reports none (typical phone compass +-3..5 deg)
+    const val HEADING_SIGMA_UNCALIBRATED_DEG = 10.0 // deg, heading error floor while the compass is not calibrated
+    const val PITCH_SIGMA_DEG = 1.0             // deg, camera elevation error
+    const val ALTITUDE_SIGMA_DEFAULT_M = 8.0    // m, observer altitude error when no sensor estimate exists
+    const val AIM_CENTRE_WEIGHT = 0.25          // weight of the offset to the target centre when the aim already lies inside the target
     const val FILTER_MIN_ACCURACY_M = 3.0     // m, no fix is trusted (and no accuracy reported) better than this
     const val FILTER_MIN_SPEED_MPS = 0.5      // m/s, assumed minimum movement of the observer between fixes
     const val FILTER_MAX_GAP_S = 60.0         // s, longer gaps between fixes count as this long
@@ -188,6 +198,13 @@ object AppConfig {
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
         require(UPDATE_RETRY_INTERVAL_MS in 1..UPDATE_CHECK_INTERVAL_MS) { "Invalid update check intervals" }
         require(ALT_INITIAL_SIGMA_MIN_M >= ALT_MIN_SIGMA_M && AIM_MIN_EYE_ABOVE_GROUND_M > 0.0) { "Invalid altitude / aim parameters" }
+        require(LOCATION_SOURCE_MAX_AGE_MS > 0 && GPS_OVERRIDES_SYSTEM_RATIO in 0.1..1.0 && FIX_TRUST_RAW_ACCURACY_M > 0) {
+            "Invalid location source parameters"
+        }
+        require(HEADING_SIGMA_MIN_DEG in 0.1..HEADING_SIGMA_MAX_DEG && HEADING_SIGMA_DEFAULT_DEG in HEADING_SIGMA_MIN_DEG..HEADING_SIGMA_MAX_DEG) {
+            "Invalid heading sigma parameters"
+        }
+        require(PITCH_SIGMA_DEG > 0 && ALTITUDE_SIGMA_DEFAULT_M > 0 && AIM_CENTRE_WEIGHT >= 0) { "Invalid pointing sigma parameters" }
         require(TILE_RETRY_INTERVAL_MS > 0 && LOCATION_DEFAULT_ACCURACY_M > 0f) { "Invalid retry / accuracy parameters" }
         require(USAGE_PING_MAX_FAILURES >= 1) { "USAGE_PING_MAX_FAILURES must be positive" }
         require(CANDIDATES_MAX >= 1) { "CANDIDATES_MAX must be positive" }

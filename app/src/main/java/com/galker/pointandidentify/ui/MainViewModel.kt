@@ -1,9 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.21
+// Version 1.22
 package com.galker.pointandidentify.ui
 
+import com.galker.pointandidentify.domain.PointingUncertainty
+import com.galker.pointandidentify.domain.PointingAccuracy
 import kotlinx.coroutines.delay
 import android.app.Application
 import android.os.SystemClock
@@ -80,6 +82,7 @@ data class UiState(
     val observerEyeAltM: Double? = null,
     val sensorHeightM: Double? = null,  // height above ground from barometer + GPS, null when unavailable
     val sensorSigmaM: Double? = null,   // its standard deviation
+    val headingSigmaDeg: Double? = null, // heading error used for the pointing uncertainty
     val cityMode: Boolean = false, // camera pointing down: the target is the current city, whatever the azimuth
     val aimDistanceM: Double? = null, // where the camera axis meets the ground = radius of the current-location circle
     val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
@@ -213,9 +216,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Zoom narrows the field of view, and with it the crosshair window.
                     val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
                     // Hand shake must not swap neighbouring places: the stabilizer holds the shown target.
+                    // What is known about the pointing error: the heading sensor's own estimate, the position accuracy the
+                    // phone reports, and the altitude estimate; the ranking weighs a miss against this uncertainty.
+                    val headingSigma = PointingUncertainty.headingSigmaDeg(o.headingAccuracyDeg, o.calibrated)
+                    val now = _ui.value
+                    val accuracy = PointingAccuracy(
+                        headingSigmaDeg = headingSigma,
+                        positionSigmaM = now.fix?.horizontalAccuracyM?.toDouble() ?: AppConfig.LOCATION_DEFAULT_ACCURACY_M.toDouble(),
+                        altitudeSigmaM = now.sensorSigmaM ?: now.fix?.verticalAccuracyM?.toDouble() ?: AppConfig.ALTITUDE_SIGMA_DEFAULT_M
+                    )
                     var selection = selectionStabilizer.stabilize(
                         SystemClock.elapsedRealtime(),
-                        TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg)
+                        TargetSelector.select(evals, o.trueAzimuthDeg, effectiveHfov, z, o.cameraElevationDeg, accuracy)
                     )
                     raised = PhonePose.isRaised(raised, o.cameraElevationDeg)
                     // Pointing down (phone on a table): the compass direction means nothing, so only the current city is shown.
@@ -258,6 +270,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         aimDistanceM = aim,
                         find = find,
                         azimuthDeg = o.trueAzimuthDeg,
+                        headingSigmaDeg = headingSigma,
                         compassCalibrated = o.calibrated,
                         cameraElevationDeg = o.cameraElevationDeg,
                         target = selection.best,

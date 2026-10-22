@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -50,7 +50,8 @@ object TargetSelector {
         azimuthDeg: Double,
         effectiveHfovDeg: Double,
         zoomRatio: Double,
-        cameraElevationDeg: Double? = null
+        cameraElevationDeg: Double? = null,
+        accuracy: PointingAccuracy = PointingAccuracy()
     ): Selection {
         val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfovDeg, zoomRatio)
         val visible = ArrayList<Candidate>()
@@ -78,10 +79,16 @@ object TargetSelector {
             }
             if (hypot(dx, dy) > circleDeg) continue
 
-            // Score: angular offset of the target centre, normalised by the window; closer targets win ties.
+            // Score (lower is better). Miss distance outside the target's extent, in units of the pointing uncertainty at that
+            // range (heading + position error horizontally, pitch + altitude error vertically): 0 when the aimed ray passes through
+            // the target. A small term for the offset to the centre decides among targets the ray passes through, and a small
+            // distance term prefers the nearer one (the first object along the ray).
             val offset = hypot(dAz, dyCentre)
             val window = circleDeg + halfWidthDeg
-            val score = offset / window + e.distanceM / AppConfig.MAX_TARGET_RANGE_M * 0.1
+            val sigmaAz = PointingUncertainty.azimuthSigmaDeg(e.distanceM, accuracy)
+            val sigmaEl = PointingUncertainty.elevationSigmaDeg(e.distanceM, accuracy)
+            val missSigmas = hypot(dx / sigmaAz, dy / sigmaEl)
+            val score = missSigmas + AppConfig.AIM_CENTRE_WEIGHT * (offset / window) + e.distanceM / AppConfig.MAX_TARGET_RANGE_M * 0.1
             val c = Candidate(e, offset, score)
             if (e.visibility == Visibility.VISIBLE) visible.add(c) else other.add(c)
         }

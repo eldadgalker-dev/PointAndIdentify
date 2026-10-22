@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.5
+// Version 1.6
 package com.galker.pointandidentify.sensors
 
 import android.content.Context
@@ -26,7 +26,8 @@ data class Orientation(
     val trueAzimuthDeg: Double,   // camera optical axis, clockwise from true north
     val cameraElevationDeg: Double, // camera axis above (+) / below (-) the horizon; -90 = phone flat, screen up
     val calibrated: Boolean,
-    val fieldStrengthUt: Double? = null // smoothed magnetometer field magnitude, uT; null until first sample
+    val fieldStrengthUt: Double? = null, // smoothed magnetometer field magnitude, uT; null until first sample
+    val headingAccuracyDeg: Double? = null // estimated heading accuracy the rotation-vector sensor reports (deg), null when it reports none
 )
 
 /**
@@ -105,6 +106,8 @@ class OrientationProvider(context: Context) : SensorEventListener {
                 SensorManager.getRotationMatrixFromVector(rotation, event.values)
                 val trueMagAz = GeoMath.normalizeDeg(cameraAzimuthDeg(rotation) + declinationDeg)
                 lastMagTrueAz = trueMagAz
+                // values[4] = estimated heading accuracy in radians (-1 when unknown); present on most devices.
+                headingAccuracyDeg = if (event.values.size >= 5 && event.values[4] >= 0f) Math.toDegrees(event.values[4].toDouble()) else null
                 // Without a gyroscope-only sensor the magnetic azimuth is used directly (with the adaptive smoothing).
                 if (gameSensor == null) publish(trueMagAz, cameraElevationDeg(rotation))
             }
@@ -141,12 +144,16 @@ class OrientationProvider(context: Context) : SensorEventListener {
             magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_LOW
     }
 
+    @Volatile
+    private var headingAccuracyDeg: Double? = null
+
     private fun publish(azimuthDeg: Double, elevationDeg: Double) {
         _orientation.value = Orientation(
             trueAzimuthDeg = azimuthSmoother.update(GeoMath.normalizeDeg(azimuthDeg)),
             cameraElevationDeg = elevationSmoother.update(elevationDeg),
             calibrated = magAccuracy >= SensorManager.SENSOR_STATUS_ACCURACY_MEDIUM,
-            fieldStrengthUt = fieldUt
+            fieldStrengthUt = fieldUt,
+            headingAccuracyDeg = headingAccuracyDeg
         )
     }
 
