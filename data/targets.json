@@ -1,5 +1,5 @@
 {
- "version": 9,
+ "version": 10,
  "items": [
   {
    "name": "Abu Abdullah Al-Aidy",
@@ -874,6 +874,14 @@
    "h": null
   },
   {
+   "name": "\"המצבה\"",
+   "kind": "monument",
+   "lat": 32.027313,
+   "lon": 34.748461,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "2014 War Memorial",
    "kind": "monument",
    "lat": 31.506005,
@@ -1346,6 +1354,22 @@
    "h": null
   },
   {
+   "name": "אנדרטה לחללי אסון השייטת",
+   "kind": "monument",
+   "lat": 31.99706,
+   "lon": 34.731951,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "אנדרטה לחללי ההפצצה המצרית על ראשון לציון",
+   "kind": "monument",
+   "lat": 31.963656,
+   "lon": 34.803272,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "אנדרטה לחללי העדה הדרוזית",
    "kind": "monument",
    "lat": 32.697587,
@@ -1358,6 +1382,14 @@
    "kind": "monument",
    "lat": 31.877186,
    "lon": 34.740028,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "אנדרטה ללוחם היהודי בצורר הנאצי",
+   "kind": "monument",
+   "lat": 32.778424,
+   "lon": 35.009238,
    "alt": null,
    "h": null
   },
@@ -1414,6 +1446,14 @@
    "kind": "monument",
    "lat": 31.209308,
    "lon": 34.307981,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "אנדרטת אלכסנדר ברוולד",
+   "kind": "monument",
+   "lat": 32.803665,
+   "lon": 34.983779,
    "alt": null,
    "h": null
   },
@@ -1634,6 +1674,14 @@
    "h": null
   },
   {
+   "name": "אנדרטת שער הברון",
+   "kind": "monument",
+   "lat": 32.089473,
+   "lon": 34.880947,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "אתר אסון המסוקים",
    "kind": "monument",
    "lat": 33.223019,
@@ -1646,6 +1694,14 @@
    "kind": "monument",
    "lat": 31.900746,
    "lon": 35.002186,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "אתר הנצחה לחללי מערכות ישראל ופעולות איבה",
+   "kind": "monument",
+   "lat": 31.243172,
+   "lon": 34.774308,
    "alt": null,
    "h": null
   },
@@ -1678,6 +1734,14 @@
    "kind": "monument",
    "lat": 31.609252,
    "lon": 34.7714,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "בקעת הקהילות",
+   "kind": "monument",
+   "lat": 31.774058,
+   "lon": 35.171206,
    "alt": null,
    "h": null
   },
@@ -1950,6 +2014,22 @@
    "kind": "monument",
    "lat": 31.046132,
    "lon": 35.367032,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "מצבת חללי מלחמת העצמאות בשחרור צפת 1948",
+   "kind": "monument",
+   "lat": 32.968218,
+   "lon": 35.495347,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "מקום בלב",
+   "kind": "monument",
+   "lat": 31.798096,
+   "lon": 34.634801,
    "alt": null,
    "h": null
   },
@@ -2274,10 +2354,18 @@
    "h": null
   },
   {
+   "name": "שופר החירות",
+   "kind": "monument",
+   "lat": 32.337831,
+   "lon": 34.872629,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "שער היבשה",
    "kind": "monument",
-   "lat": 32.921889,
-   "lon": 35.072967,
+   "lat": 32.921903,
+   "lon": 35.072935,
    "alt": null,
    "h": null
   },
@@ -7674,6 +7762,14 @@
    "h": null
   },
   {
+   "name": "גבעת מיכאל",
+   "kind": "peak",
+   "lat": 31.932772,
+   "lon": 34.793536,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "גבעת מכוש",
    "kind": "peak",
    "lat": 32.900004,
@@ -8074,14 +8170,6 @@
    "h": null
   },
   {
-   "name": "גודרים",
-   "kind": "peak",
-   "lat": 33.046261,
-   "lon": 35.389003,
-   "alt": 762.0,
-   "h": null
-  },
-  {
    "name": "דהרת אברהים",
    "kind": "peak",
    "lat": 33.156858,
@@ -8343,6 +8431,14 @@
    "lat": 30.5925,
    "lon": 34.897772,
    "alt": 551.0,
+   "h": null
+  },
+  {
+   "name": "הר אצל",
+   "kind": "peak",
+   "lat": 31.754068,
+   "lon": 35.236133,
+   "alt": 795.0,
    "h": null
   },
   {
@@ -8623,6 +8719,14 @@
    "lat": 33.276433,
    "lon": 35.741984,
    "alt": 1375.0,
+   "h": null
+  },
+  {
+   "name": "הר גודרים",
+   "kind": "peak",
+   "lat": 33.046261,
+   "lon": 35.389003,
+   "alt": 762.0,
    "h": null
   },
   {
@@ -10454,7 +10558,7 @@
    "kind": "peak",
    "lat": 32.963501,
    "lon": 35.314289,
-   "alt": null,
+   "alt": 795.0,
    "h": null
   },
   {
@@ -11298,14 +11402,6 @@
    "h": null
   },
   {
-   "name": "הרי רמים",
-   "kind": "peak",
-   "lat": 33.182741,
-   "lon": 35.547565,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "זקיף רמון",
    "kind": "peak",
    "lat": 30.558964,
@@ -12018,6 +12114,14 @@
    "h": null
   },
   {
+   "name": "רכס רמים",
+   "kind": "peak",
+   "lat": 33.182741,
+   "lon": 35.547565,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "רמת אדמון",
    "kind": "peak",
    "lat": 33.029732,
@@ -12047,6 +12151,14 @@
    "lat": 29.553712,
    "lon": 34.913877,
    "alt": null,
+   "h": null
+  },
+  {
+   "name": "רמת פשחור",
+   "kind": "peak",
+   "lat": 32.948811,
+   "lon": 35.487727,
+   "alt": 616.0,
    "h": null
   },
   {
@@ -13586,14 +13698,6 @@
    "h": null
   },
   {
-   "name": "Al Teim",
-   "kind": "ruins",
-   "lat": 31.701008,
-   "lon": 35.783198,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "Al- Aqqaba Neighborhood",
    "kind": "ruins",
    "lat": 31.525896,
@@ -14230,6 +14334,14 @@
    "kind": "ruins",
    "lat": 32.449648,
    "lon": 35.613705,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "Canaanite Temple - Nahariyah",
+   "kind": "ruins",
+   "lat": 33.012504,
+   "lon": 35.090562,
    "alt": null,
    "h": null
   },
@@ -15818,14 +15930,6 @@
    "h": null
   },
   {
-   "name": "Khirbet Qatamun",
-   "kind": "ruins",
-   "lat": 33.057719,
-   "lon": 35.367875,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "Khirbet Qufin",
    "kind": "ruins",
    "lat": 31.621026,
@@ -15980,8 +16084,8 @@
   {
    "name": "Khirbet en-Nasara",
    "kind": "ruins",
-   "lat": 31.549356,
-   "lon": 35.093592,
+   "lat": 31.549187,
+   "lon": 35.093324,
    "alt": null,
    "h": null
   },
@@ -16748,8 +16852,8 @@
   {
    "name": "Raised convent Samaan",
    "kind": "ruins",
-   "lat": 32.018189,
-   "lon": 35.06854,
+   "lat": 32.018293,
+   "lon": 35.068559,
    "alt": null,
    "h": null
   },
@@ -16878,14 +16982,6 @@
    "kind": "ruins",
    "lat": 31.66238,
    "lon": 34.547968,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "Roman city walls",
-   "kind": "ruins",
-   "lat": 32.276028,
-   "lon": 35.185613,
    "alt": null,
    "h": null
   },
@@ -17108,8 +17204,8 @@
   {
    "name": "Saint Theodore's Church",
    "kind": "ruins",
-   "lat": 32.017641,
-   "lon": 35.070038,
+   "lat": 32.017645,
+   "lon": 35.070054,
    "alt": null,
    "h": null
   },
@@ -17382,6 +17478,14 @@
    "kind": "ruins",
    "lat": 32.684503,
    "lon": 35.486453,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "Tel Rehov",
+   "kind": "ruins",
+   "lat": 32.456948,
+   "lon": 35.49839,
    "alt": null,
    "h": null
   },
@@ -17854,14 +17958,6 @@
    "kind": "ruins",
    "lat": 32.45039,
    "lon": 35.614551,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "Umm Khalid",
-   "kind": "ruins",
-   "lat": 32.329176,
-   "lon": 34.865489,
    "alt": null,
    "h": null
   },
@@ -18418,6 +18514,14 @@
    "h": null
   },
   {
+   "name": "אום ח'אלד",
+   "kind": "ruins",
+   "lat": 32.329176,
+   "lon": 34.865489,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "אומלבס",
    "kind": "ruins",
    "lat": 32.100155,
@@ -18724,8 +18828,8 @@
   {
    "name": "אמת הביאר",
    "kind": "ruins",
-   "lat": 31.656211,
-   "lon": 35.145109,
+   "lat": 31.656276,
+   "lon": 35.146361,
    "alt": null,
    "h": null
   },
@@ -18734,6 +18838,14 @@
    "kind": "ruins",
    "lat": 31.886183,
    "lon": 34.87999,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "אמת המים התחתונה",
+   "kind": "ruins",
+   "lat": 31.735015,
+   "lon": 35.216838,
    "alt": null,
    "h": null
   },
@@ -19212,8 +19324,8 @@
   {
    "name": "ביארת חנון",
    "kind": "ruins",
-   "lat": 32.293806,
-   "lon": 34.863192,
+   "lat": 32.293749,
+   "lon": 34.86318,
    "alt": null,
    "h": null
   },
@@ -19286,6 +19398,14 @@
    "kind": "ruins",
    "lat": 32.102674,
    "lon": 34.797953,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "בית באר",
+   "kind": "ruins",
+   "lat": 31.808366,
+   "lon": 34.855185,
    "alt": null,
    "h": null
   },
@@ -20314,6 +20434,14 @@
    "h": null
   },
   {
+   "name": "גן הגתות",
+   "kind": "ruins",
+   "lat": 31.964649,
+   "lon": 34.789318,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "גן הידע",
    "kind": "ruins",
    "lat": 31.820057,
@@ -20866,14 +20994,6 @@
    "h": null
   },
   {
-   "name": "גת ביזנטית",
-   "kind": "ruins",
-   "lat": 31.964663,
-   "lon": 34.789291,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "גת דורון",
    "kind": "ruins",
    "lat": 31.895296,
@@ -21069,7 +21189,7 @@
    "name": "דיר קסיס",
    "kind": "ruins",
    "lat": 32.080458,
-   "lon": 35.035799,
+   "lon": 35.035681,
    "alt": null,
    "h": null
   },
@@ -21222,6 +21342,14 @@
    "kind": "ruins",
    "lat": 31.739833,
    "lon": 35.216758,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "הגן הארכאולוגי",
+   "kind": "ruins",
+   "lat": 31.673392,
+   "lon": 34.56865,
    "alt": null,
    "h": null
   },
@@ -21498,6 +21626,14 @@
    "h": null
   },
   {
+   "name": "הקברים הצבועים",
+   "kind": "ruins",
+   "lat": 31.678666,
+   "lon": 34.557637,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "הר הקברות",
    "kind": "ruins",
    "lat": 32.627616,
@@ -21742,6 +21878,14 @@
    "kind": "ruins",
    "lat": 31.964877,
    "lon": 35.248837,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "ח'ירבת כפר פידיא",
+   "kind": "ruins",
+   "lat": 31.983819,
+   "lon": 35.138354,
    "alt": null,
    "h": null
   },
@@ -22070,6 +22214,14 @@
    "kind": "ruins",
    "lat": 31.826635,
    "lon": 35.38649,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "חורבות נבטיות",
+   "kind": "ruins",
+   "lat": 30.834405,
+   "lon": 34.496851,
    "alt": null,
    "h": null
   },
@@ -24226,6 +24378,14 @@
    "h": null
   },
   {
+   "name": "חורבת קטמון",
+   "kind": "ruins",
+   "lat": 33.057719,
+   "lon": 35.367875,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "חורבת קיט",
    "kind": "ruins",
    "lat": 31.624884,
@@ -25146,18 +25306,18 @@
    "h": null
   },
   {
-   "name": "חרבת קטמה",
+   "name": "חרבת קוצין",
    "kind": "ruins",
-   "lat": 31.782932,
-   "lon": 35.062781,
+   "lat": 32.274569,
+   "lon": 35.164365,
    "alt": null,
    "h": null
   },
   {
-   "name": "חרבת קיצין",
+   "name": "חרבת קטמה",
    "kind": "ruins",
-   "lat": 32.274569,
-   "lon": 35.164365,
+   "lat": 31.782932,
+   "lon": 35.062781,
    "alt": null,
    "h": null
   },
@@ -25738,6 +25898,14 @@
    "h": null
   },
   {
+   "name": "כנסיה ביזנטית",
+   "kind": "ruins",
+   "lat": 32.984976,
+   "lon": 35.08266,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "כנסיה ביזנטית ופסיפס",
    "kind": "ruins",
    "lat": 31.4182,
@@ -25796,8 +25964,8 @@
   {
    "name": "כנסיית אנסטסיה הקדושה",
    "kind": "ruins",
-   "lat": 32.014523,
-   "lon": 35.066232,
+   "lat": 32.014525,
+   "lon": 35.066241,
    "alt": null,
    "h": null
   },
@@ -25828,8 +25996,8 @@
   {
    "name": "כנסיית מישה",
    "kind": "ruins",
-   "lat": 32.015437,
-   "lon": 35.067806,
+   "lat": 32.015407,
+   "lon": 35.067781,
    "alt": null,
    "h": null
   },
@@ -26146,6 +26314,14 @@
    "h": null
   },
   {
+   "name": "מאגר המים התת-קרקעי",
+   "kind": "ruins",
+   "lat": 31.75124,
+   "lon": 34.975265,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "מאגר מים",
    "kind": "ruins",
    "lat": 32.586421,
@@ -26306,6 +26482,14 @@
    "h": null
   },
   {
+   "name": "מבנים עותמנים",
+   "kind": "ruins",
+   "lat": 30.864596,
+   "lon": 34.442721,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "מבצר אפולוניה",
    "kind": "ruins",
    "lat": 32.195229,
@@ -26444,8 +26628,8 @@
   {
    "name": "מגדל הדבורים",
    "kind": "ruins",
-   "lat": 32.592202,
-   "lon": 35.085497,
+   "lat": 32.592249,
+   "lon": 35.085689,
    "alt": null,
    "h": null
   },
@@ -26924,8 +27108,8 @@
   {
    "name": "מלכודת נמרים",
    "kind": "ruins",
-   "lat": 30.578043,
-   "lon": 34.570735,
+   "lat": 30.9132,
+   "lon": 35.063425,
    "alt": null,
    "h": null
   },
@@ -27250,6 +27434,14 @@
    "h": null
   },
   {
+   "name": "מערכות המסתור בחורבת אשון",
+   "kind": "ruins",
+   "lat": 31.903811,
+   "lon": 34.983226,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "מערת בבוקריום",
    "kind": "ruins",
    "lat": 31.633821,
@@ -27318,14 +27510,6 @@
    "kind": "ruins",
    "lat": 32.6,
    "lon": 34.966667,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "מערת יוחנן המטביל",
-   "kind": "ruins",
-   "lat": 31.77775,
-   "lon": 35.121566,
    "alt": null,
    "h": null
   },
@@ -27526,6 +27710,14 @@
    "kind": "ruins",
    "lat": 32.010373,
    "lon": 34.915501,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "מפעל בריטי ישן",
+   "kind": "ruins",
+   "lat": 31.982572,
+   "lon": 34.938082,
    "alt": null,
    "h": null
   },
@@ -28023,6 +28215,14 @@
    "lat": 30.914343,
    "lon": 34.771244,
    "alt": 492.0,
+   "h": null
+  },
+  {
+   "name": "מצודת נחל לוץ",
+   "kind": "ruins",
+   "lat": 30.473251,
+   "lon": 34.601904,
+   "alt": null,
    "h": null
   },
   {
@@ -28542,6 +28742,14 @@
    "kind": "ruins",
    "lat": 31.478991,
    "lon": 34.414698,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "נקבת האמה התחתונה בארמון הנציב",
+   "kind": "ruins",
+   "lat": 31.7523,
+   "lon": 35.23384,
    "alt": null,
    "h": null
   },
@@ -29106,6 +29314,14 @@
    "h": null
   },
   {
+   "name": "פארק (גן לאומי) הרודיון",
+   "kind": "ruins",
+   "lat": 31.666287,
+   "lon": 35.242003,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "פארק ארכיאולוגי",
    "kind": "ruins",
    "lat": 32.680891,
@@ -29598,14 +29814,6 @@
    "kind": "ruins",
    "lat": 33.112887,
    "lon": 35.531873,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "קברים מהתקופה הרומית",
-   "kind": "ruins",
-   "lat": 31.678666,
-   "lon": 34.557637,
    "alt": null,
    "h": null
   },
@@ -30170,6 +30378,14 @@
    "h": null
   },
   {
+   "name": "שייח אבו יזיד",
+   "kind": "ruins",
+   "lat": 32.304394,
+   "lon": 35.219227,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "שייח בורייך",
    "kind": "ruins",
    "lat": 32.673924,
@@ -30294,6 +30510,14 @@
    "kind": "ruins",
    "lat": 31.859468,
    "lon": 34.921795,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "שערי העיר מהתקופה הרומאית",
+   "kind": "ruins",
+   "lat": 32.276028,
+   "lon": 35.185613,
    "alt": null,
    "h": null
   },
@@ -30798,6 +31022,14 @@
    "kind": "ruins",
    "lat": 31.280716,
    "lon": 35.126172,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "תל העי",
+   "kind": "ruins",
+   "lat": 31.896785,
+   "lon": 35.229198,
    "alt": null,
    "h": null
   },
@@ -31788,8 +32020,8 @@
   {
    "name": "أثار دير سمعان (Raised convent Samaan)",
    "kind": "ruins",
-   "lat": 32.018136,
-   "lon": 35.068545,
+   "lat": 32.018117,
+   "lon": 35.068468,
    "alt": null,
    "h": null
   },
@@ -31820,8 +32052,8 @@
   {
    "name": "بابور عابود",
    "kind": "ruins",
-   "lat": 32.01828,
-   "lon": 35.067926,
+   "lat": 32.018174,
+   "lon": 35.067948,
    "alt": null,
    "h": null
   },
@@ -31894,14 +32126,6 @@
    "kind": "ruins",
    "lat": 32.010008,
    "lon": 35.084578,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "رقم00000",
-   "kind": "ruins",
-   "lat": 29.561003,
-   "lon": 34.960286,
    "alt": null,
    "h": null
   },
@@ -32010,7 +32234,7 @@
    "h": null
   },
   {
-   "name": "موقع الفرير للحفريات الاثرية",
+   "name": "موقع الفرير للحفريات الأثرية",
    "kind": "ruins",
    "lat": 33.561908,
    "lon": 35.371194,
@@ -32030,14 +32254,6 @@
    "kind": "ruins",
    "lat": 31.30675,
    "lon": 35.269061,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "A'raa'ra Bedouins",
-   "kind": "settlement",
-   "lat": 31.852257,
-   "lon": 35.263406,
    "alt": null,
    "h": null
   },
@@ -38162,6 +38378,14 @@
    "h": null
   },
   {
+   "name": "Ras Al-Joura",
+   "kind": "settlement",
+   "lat": 31.556837,
+   "lon": 35.100503,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "Ras al Naqb",
    "kind": "settlement",
    "lat": 29.996968,
@@ -39162,10 +39386,18 @@
    "h": null
   },
   {
+   "name": "University Neighborhood",
+   "kind": "settlement",
+   "lat": 31.551105,
+   "lon": 35.09276,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "Wadi Abu Hindi",
    "kind": "settlement",
-   "lat": 31.758546,
-   "lon": 35.318681,
+   "lat": 31.758673,
+   "lon": 35.318506,
    "alt": null,
    "h": null
   },
@@ -39428,8 +39660,8 @@
   {
    "name": "א-זאוויה",
    "kind": "settlement",
-   "lat": 32.095241,
-   "lon": 35.040086,
+   "lat": 32.094991,
+   "lon": 35.039978,
    "alt": null,
    "h": null
   },
@@ -40842,6 +41074,14 @@
    "h": null
   },
   {
+   "name": "אור נחמן",
+   "kind": "settlement",
+   "lat": 32.028025,
+   "lon": 35.327466,
+   "alt": null,
+   "h": null
+  },
+  {
    "name": "אור עקיבא",
    "kind": "settlement",
    "lat": 32.502946,
@@ -41572,8 +41812,8 @@
   {
    "name": "אל מנסורה",
    "kind": "settlement",
-   "lat": 32.386291,
-   "lon": 35.21625,
+   "lat": 32.386238,
+   "lon": 35.216271,
    "alt": null,
    "h": null
   },
@@ -42348,8 +42588,8 @@
   {
    "name": "אל-נזלה א-שרקיה",
    "kind": "settlement",
-   "lat": 32.411419,
-   "lon": 35.107509,
+   "lat": 32.41142,
+   "lon": 35.107544,
    "alt": null,
    "h": null
   },
@@ -43956,8 +44196,8 @@
   {
    "name": "בורקין",
    "kind": "settlement",
-   "lat": 32.456188,
-   "lon": 35.260657,
+   "lat": 32.456136,
+   "lon": 35.260663,
    "alt": null,
    "h": null
   },
@@ -44452,8 +44692,8 @@
   {
    "name": "בית דוקו",
    "kind": "settlement",
-   "lat": 31.858252,
-   "lon": 35.132536,
+   "lat": 31.858232,
+   "lon": 35.132501,
    "alt": null,
    "h": null
   },
@@ -44612,8 +44852,8 @@
   {
    "name": "בית חורון",
    "kind": "settlement",
-   "lat": 31.877365,
-   "lon": 35.127215,
+   "lat": 31.877413,
+   "lon": 35.127193,
    "alt": null,
    "h": null
   },
@@ -44791,14 +45031,6 @@
    "lat": 31.570936,
    "lon": 35.066311,
    "alt": null,
-   "h": null
-  },
-  {
-   "name": "בית לחם",
-   "kind": "settlement",
-   "lat": 31.704368,
-   "lon": 35.206146,
-   "alt": 765.0,
    "h": null
   },
   {
@@ -45476,8 +45708,8 @@
   {
    "name": "בני זייד אל-ע'רביה",
    "kind": "settlement",
-   "lat": 32.031854,
-   "lon": 35.104033,
+   "lat": 32.031857,
+   "lon": 35.103944,
    "alt": null,
    "h": null
   },
@@ -46074,14 +46306,6 @@
    "h": null
   },
   {
-   "name": "ג'אבא מזרח בדואים",
-   "kind": "settlement",
-   "lat": 31.860151,
-   "lon": 35.269752,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "ג'אלא",
    "kind": "settlement",
    "lat": 31.621878,
@@ -46158,6 +46382,14 @@
    "kind": "settlement",
    "lat": 31.866641,
    "lon": 35.254624,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "ג'בע מזרח בדואים",
+   "kind": "settlement",
+   "lat": 31.860151,
+   "lon": 35.269752,
    "alt": null,
    "h": null
   },
@@ -46356,8 +46588,8 @@
   {
    "name": "ג'לקמוס",
    "kind": "settlement",
-   "lat": 32.425417,
-   "lon": 35.364472,
+   "lat": 32.42542,
+   "lon": 35.364563,
    "alt": null,
    "h": null
   },
@@ -46958,14 +47190,6 @@
    "kind": "settlement",
    "lat": 31.699725,
    "lon": 35.140856,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "גבעת הרקפות",
-   "kind": "settlement",
-   "lat": 32.834649,
-   "lon": 35.102985,
    "alt": null,
    "h": null
   },
@@ -48180,8 +48404,8 @@
   {
    "name": "דחיאת אל אקבאט בדואים",
    "kind": "settlement",
-   "lat": 31.850432,
-   "lon": 35.259779,
+   "lat": 31.850422,
+   "lon": 35.259666,
    "alt": null,
    "h": null
   },
@@ -48348,8 +48572,8 @@
   {
    "name": "דיר בלוט",
    "kind": "settlement",
-   "lat": 32.064301,
-   "lon": 35.022717,
+   "lat": 32.064788,
+   "lon": 35.021933,
    "alt": null,
    "h": null
   },
@@ -49380,7 +49604,7 @@
   {
    "name": "ואדי קנה",
    "kind": "settlement",
-   "lat": 32.159306,
+   "lat": 32.160427,
    "lon": 35.114542,
    "alt": null,
    "h": null
@@ -49460,8 +49684,8 @@
   {
    "name": "זבאבדה",
    "kind": "settlement",
-   "lat": 32.385757,
-   "lon": 35.324156,
+   "lat": 32.386102,
+   "lon": 35.324838,
    "alt": null,
    "h": null
   },
@@ -49989,7 +50213,7 @@
    "name": "ח'רבת מסעוד",
    "kind": "settlement",
    "lat": 32.442495,
-   "lon": 35.113705,
+   "lon": 35.113688,
    "alt": null,
    "h": null
   },
@@ -50156,8 +50380,8 @@
   {
    "name": "חבצלת",
    "kind": "settlement",
-   "lat": 31.875555,
-   "lon": 34.816429,
+   "lat": 31.875518,
+   "lon": 34.815356,
    "alt": null,
    "h": null
   },
@@ -51484,8 +51708,8 @@
   {
    "name": "חרבת עבדאללה אל-יונס",
    "kind": "settlement",
-   "lat": 32.475755,
-   "lon": 35.114339,
+   "lat": 32.475751,
+   "lon": 35.114587,
    "alt": null,
    "h": null
   },
@@ -51756,8 +51980,8 @@
   {
    "name": "טורה אל-שרקייה",
    "kind": "settlement",
-   "lat": 32.46621,
-   "lon": 35.165771,
+   "lat": 32.466157,
+   "lon": 35.165792,
    "alt": null,
    "h": null
   },
@@ -55708,8 +55932,8 @@
   {
    "name": "מארקה",
    "kind": "settlement",
-   "lat": 32.396704,
-   "lon": 35.238734,
+   "lat": 32.396847,
+   "lon": 35.238672,
    "alt": null,
    "h": null
   },
@@ -60349,7 +60573,7 @@
    "name": "סילת אל-חארית'יה",
    "kind": "settlement",
    "lat": 32.50914,
-   "lon": 35.228303,
+   "lon": 35.227201,
    "alt": null,
    "h": null
   },
@@ -60868,8 +61092,16 @@
   {
    "name": "עבוד",
    "kind": "settlement",
-   "lat": 32.015501,
-   "lon": 35.068915,
+   "lat": 32.015552,
+   "lon": 35.069063,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "עבוד",
+   "kind": "settlement",
+   "lat": 32.017376,
+   "lon": 35.071223,
    "alt": null,
    "h": null
   },
@@ -61180,8 +61412,8 @@
   {
    "name": "עזבת ג'לעוד",
    "kind": "settlement",
-   "lat": 32.151074,
-   "lon": 34.998671,
+   "lat": 32.151069,
+   "lon": 34.9986,
    "alt": null,
    "h": null
   },
@@ -61196,8 +61428,8 @@
   {
    "name": "עזבת סלמאן",
    "kind": "settlement",
-   "lat": 32.142232,
-   "lon": 34.998257,
+   "lat": 32.143223,
+   "lon": 34.997342,
    "alt": null,
    "h": null
   },
@@ -61964,8 +62196,8 @@
   {
    "name": "עין קיניא",
    "kind": "settlement",
-   "lat": 31.926307,
-   "lon": 35.149607,
+   "lat": 31.926146,
+   "lon": 35.149944,
    "alt": null,
    "h": null
   },
@@ -62468,8 +62700,8 @@
   {
    "name": "ענזה",
    "kind": "settlement",
-   "lat": 32.359438,
-   "lon": 35.220432,
+   "lat": 32.359435,
+   "lon": 35.220528,
    "alt": null,
    "h": null
   },
@@ -62628,8 +62860,8 @@
   {
    "name": "עראבה",
    "kind": "settlement",
-   "lat": 32.40461,
-   "lon": 35.203339,
+   "lat": 32.4047,
+   "lon": 35.203354,
    "alt": null,
    "h": null
   },
@@ -62700,8 +62932,8 @@
   {
    "name": "ערב אבו-פרדה",
    "kind": "settlement",
-   "lat": 32.175897,
-   "lon": 34.9947,
+   "lat": 32.175854,
+   "lon": 34.99471,
    "alt": null,
    "h": null
   },
@@ -62830,6 +63062,14 @@
    "kind": "settlement",
    "lat": 32.496551,
    "lon": 35.095558,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "ערערה בדואים",
+   "kind": "settlement",
+   "lat": 31.852311,
+   "lon": 35.263406,
    "alt": null,
    "h": null
   },
@@ -63100,8 +63340,8 @@
   {
    "name": "פחמה אל-ג'דידה",
    "kind": "settlement",
-   "lat": 32.389251,
-   "lon": 35.208954,
+   "lat": 32.389295,
+   "lon": 35.20904,
    "alt": null,
    "h": null
   },
@@ -64546,14 +64786,6 @@
    "h": null
   },
   {
-   "name": "קריית טבעון",
-   "kind": "settlement",
-   "lat": 32.733204,
-   "lon": 35.145339,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "קריית ים",
    "kind": "settlement",
    "lat": 32.847739,
@@ -65220,8 +65452,8 @@
   {
    "name": "רומאנה",
    "kind": "settlement",
-   "lat": 32.523948,
-   "lon": 35.2059,
+   "lat": 32.523913,
+   "lon": 35.205794,
    "alt": null,
    "h": null
   },
@@ -67517,7 +67749,7 @@
    "name": "תיעניכ",
    "kind": "settlement",
    "lat": 32.519826,
-   "lon": 35.222575,
+   "lon": 35.22255,
    "alt": null,
    "h": null
   },
@@ -69098,14 +69330,6 @@
    "h": null
   },
   {
-   "name": "حي الجامعة",
-   "kind": "settlement",
-   "lat": 31.551105,
-   "lon": 35.09276,
-   "alt": null,
-   "h": null
-  },
-  {
    "name": "حي السعادة",
    "kind": "settlement",
    "lat": 32.569317,
@@ -69214,14 +69438,6 @@
    "kind": "settlement",
    "lat": 32.382222,
    "lon": 35.810167,
-   "alt": null,
-   "h": null
-  },
-  {
-   "name": "راس الجورة",
-   "kind": "settlement",
-   "lat": 31.556837,
-   "lon": 35.100503,
    "alt": null,
    "h": null
   },
@@ -70508,8 +70724,8 @@
   {
    "name": "Al Khazan",
    "kind": "water_tower",
-   "lat": 32.157655,
-   "lon": 34.991498,
+   "lat": 32.157648,
+   "lon": 34.991496,
    "alt": null,
    "h": null
   },
@@ -70796,8 +71012,8 @@
   {
    "name": "Zita",
    "kind": "water_tower",
-   "lat": 32.385391,
-   "lon": 35.04873,
+   "lat": 32.385405,
+   "lon": 35.04878,
    "alt": null,
    "h": null
   },
@@ -70806,6 +71022,14 @@
    "kind": "water_tower",
    "lat": 32.704715,
    "lon": 35.594099,
+   "alt": null,
+   "h": null
+  },
+  {
+   "name": "מגדל המים",
+   "kind": "water_tower",
+   "lat": 31.244636,
+   "lon": 34.787924,
    "alt": null,
    "h": null
   },
