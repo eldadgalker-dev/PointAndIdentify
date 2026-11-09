@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.23
+// Version 1.24
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -81,6 +81,9 @@ object AppConfig {
     const val ALT_GATE_SIGMAS = 4.0            // GPS altitudes farther than this many sigmas from the prediction are ignored
     const val ALT_AUTO_MAX_SIGMA_M = 12.0      // m, the sensor altitude is used only when it is at least this certain
     const val ALT_LOWER_BOUND_SIGMAS = 1.5     // the sensor altitude is used minus this many sigmas (never optimistic)
+    const val DEM_GROUND_SIGMA_M = 5.0         // m, ESTIMATE of the terrain-model ground error under the observer (30 m cells, position error on slopes)
+    const val ALT_CONSISTENCY_SIGMAS = 2.0     // terrain and sensor altitude agree when they differ by less than this many combined sigmas
+    const val ANGLE_REFRESH_M = 0.25           // m, the vertical angles are re-computed for the current eye altitude when it moved this much since the last pass
     const val ALT_RECALC_M = 3.0               // m, change of the observer altitude that triggers a new visibility pass
 
     // ===== Parameters: phone pose (raised = aiming, flat = reading the screen; hysteresis between the two) =====
@@ -184,6 +187,7 @@ object AppConfig {
         require(ALT_BARO_DRIFT_M_PER_SQRT_S > 0 && ALT_GATE_SIGMAS > 0 && ALT_AUTO_MAX_SIGMA_M > ALT_MIN_SIGMA_M) {
             "Invalid altitude fusion limits"
         }
+        require(DEM_GROUND_SIGMA_M > 0.0 && ALT_CONSISTENCY_SIGMAS > 0.0 && ANGLE_REFRESH_M > 0.0) { "Invalid eye altitude parameters" }
         require(ALT_LOWER_BOUND_SIGMAS >= 0.0 && ALT_RECALC_M > 0.0) { "Invalid altitude bound parameters" }
         require(CITY_MODE_BELOW_DEG < CITY_MODE_EXIT_DEG) { "CITY_MODE_BELOW_DEG must be below CITY_MODE_EXIT_DEG (hysteresis)" }
         require(0.0 < CITY_AIM_RADIUS_M && CITY_AIM_RADIUS_M < CITY_AIM_EXIT_M && CITY_AIM_EXIT_M <= AIM_RAY_MAX_M) {

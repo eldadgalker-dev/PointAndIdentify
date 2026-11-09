@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.3
+// Version 2.4
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -19,7 +19,8 @@ import kotlin.math.max
 //   Target top : ground (DEM or catalogue, per TargetKind) + structure height (catalogue or kind default)
 //   Obstructed : any sample with z_eff(x) > line(x) + LOS_CLEARANCE_TOLERANCE_M (DEM noise), excluding the kind's footprint before the target
 //   Unknown    : no obstruction found, but at least one sample had no terrain data
-//   Elevation  : apparent vertical angle to the target top, atan2(h1_eff - h0, D)
+//   Elevation  : apparent vertical angle to the target top, atan2(h1_eff - h_angle, D); h_angle is the unbiased eye altitude
+//                (angleEyeAltM), while h0 (the cautious one) is used only for the obstruction test
 // =============================================================
 
 enum class Visibility { VISIBLE, OBSTRUCTED, UNKNOWN }
@@ -37,6 +38,17 @@ data class TargetEvaluation(
     val groundAngleDeg: Double? = null      // apparent vertical angle to the target's ground (elevationAngleDeg is its top)
 )
 
+/** Apparent vertical angle from an eye at eyeAltM to a point at pointAltM, distanceM away (curvature and refraction included). */
+fun apparentAngleDeg(pointAltM: Double, eyeAltM: Double, distanceM: Double): Double =
+    Math.toDegrees(atan2(pointAltM - GeoMath.curvatureDropM(distanceM) - eyeAltM, max(distanceM, 1.0)))
+
+/** The same evaluation with its vertical angles recomputed for another eye altitude (the visibility result is kept). */
+fun TargetEvaluation.reangled(eyeAltM: Double): TargetEvaluation {
+    val top = topAltM ?: return this
+    val ground = groundAltM ?: return this
+    return copy(elevationAngleDeg = apparentAngleDeg(top, eyeAltM, distanceM), groundAngleDeg = apparentAngleDeg(ground, eyeAltM, distanceM))
+}
+
 /** Terrain lookup abstraction: returns metres MSL or null when unknown. */
 fun interface TerrainSource {
     fun elevationM(lat: Double, lon: Double): Double?
@@ -48,7 +60,8 @@ class LineOfSightCalculator(private val terrain: TerrainSource) {
         observerLat: Double,
         observerLon: Double,
         observerEyeAltM: Double,
-        target: TargetEntity
+        target: TargetEntity,
+        angleEyeAltM: Double = observerEyeAltM
     ): TargetEvaluation {
         val kind = target.targetKind
         val distance = GeoMath.distanceM(observerLat, observerLon, target.latitude, target.longitude)
@@ -61,8 +74,8 @@ class LineOfSightCalculator(private val terrain: TerrainSource) {
 
         val h0 = observerEyeAltM
         val h1Eff = top - GeoMath.curvatureDropM(distance)
-        val elevation = Math.toDegrees(atan2(h1Eff - h0, max(distance, 1.0)))
-        val groundAngle = Math.toDegrees(atan2(ground - GeoMath.curvatureDropM(distance) - h0, max(distance, 1.0)))
+        val elevation = apparentAngleDeg(top, angleEyeAltM, distance)
+        val groundAngle = apparentAngleDeg(ground, angleEyeAltM, distance)
 
         // Sample count follows DEM resolution so narrow ridges are not skipped.
         val n = max(2, ceil(distance / AppConfig.DEM_SAMPLE_SPACING_M).toInt())

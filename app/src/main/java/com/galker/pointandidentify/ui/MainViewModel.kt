@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.22
+// Version 1.23
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.domain.PointingUncertainty
@@ -18,6 +18,9 @@ import com.galker.pointandidentify.data.dem.DemTileRepository
 import com.galker.pointandidentify.domain.AimRay
 import com.galker.pointandidentify.domain.AltitudeEstimate
 import com.galker.pointandidentify.domain.BaroGpsFusion
+import com.galker.pointandidentify.domain.EyeAltitude
+import com.galker.pointandidentify.domain.EyeAltitudeModel
+import com.galker.pointandidentify.domain.reangled
 import com.galker.pointandidentify.domain.Candidate
 import com.galker.pointandidentify.domain.CityMode
 import com.galker.pointandidentify.domain.CityPicker
@@ -119,8 +122,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val orientationProvider = OrientationProvider(app)
     val pressureProvider = PressureProvider(app)
     private val altitudeFusion = BaroGpsFusion()
-    private var lastEyeAlt: Double? = null      // eye altitude of the last FINISHED visibility pass (used by the aim ray)
-    private var lastLosEyeAlt: Double? = null   // eye altitude at the START of the last visibility pass (change trigger)
+    private var lastEyeAlt: Double? = null      // unbiased eye altitude the last FINISHED visibility pass measured its angles from (aim ray, re-angling)
+    private var lastLosEyeAlt: Double? = null   // cautious eye altitude at the START of the last visibility pass (change trigger)
     private val locationProvider = LocationProvider(app)
     private val terrain = TerrainSource { lat, lon -> dem.elevationM(lat, lon) }
     private val losCalculator = LineOfSightCalculator(terrain)
@@ -211,7 +214,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 .sample(AppConfig.UI_UPDATE_INTERVAL_MS)
                 .collect { tick ->
                     val o = tick.o
-                    val evals = tick.evals
+                    // The unbiased eye altitude right now: the angles of the last pass are shifted to it (a pass is only
+                    // restarted after ALT_RECALC_M, and 3 m of eye error at 300 m is already 0.6 deg of elevation).
+                    val fixTick = _ui.value.fix
+                    val eyeTick = fixTick?.let { observerEye(it) }
+                    val passEye = lastEyeAlt
+                    val reangle = eyeTick != null && passEye != null && abs(eyeTick.bestM - passEye) > AppConfig.ANGLE_REFRESH_M
+                    val evals = if (reangle && eyeTick != null) tick.evals.map { it.reangled(eyeTick.bestM) } else tick.evals
                     val z = tick.zoom
                     // Zoom narrows the field of view, and with it the crosshair window.
                     val effectiveHfov = TargetSelector.effectiveHfovDeg(hfovDeg, z)
@@ -223,7 +232,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val accuracy = PointingAccuracy(
                         headingSigmaDeg = headingSigma,
                         positionSigmaM = now.fix?.horizontalAccuracyM?.toDouble() ?: AppConfig.LOCATION_DEFAULT_ACCURACY_M.toDouble(),
-                        altitudeSigmaM = now.sensorSigmaM ?: now.fix?.verticalAccuracyM?.toDouble() ?: AppConfig.ALTITUDE_SIGMA_DEFAULT_M
+                        altitudeSigmaM = eyeTick?.sigmaM ?: now.fix?.verticalAccuracyM?.toDouble() ?: AppConfig.ALTITUDE_SIGMA_DEFAULT_M
                     )
                     var selection = selectionStabilizer.stabilize(
                         SystemClock.elapsedRealtime(),
@@ -249,16 +258,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         else -> aimNear
                     }
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
-                    val find = tick.find?.let { e ->
+                    val findE = tick.find?.let { if (reangle && eyeTick != null) it.reangled(eyeTick.bestM) else it }
+                    val find = findE?.let { e ->
                         FindState(
                             e.target.name, e.distanceM, e.bearingDeg,
                             FindGuidance.guide(e.bearingDeg, e.elevationAngleDeg, o.trueAzimuthDeg, o.cameraElevationDeg, circleDeg)
                         )
                     }
                     // A place being searched (Find) that is inside the crosshair is the answer, visible or not.
-                    val findHere = tick.find != null && find?.guide?.inside == true
-                    if (findHere && tick.find != null && find != null) {
-                        selection = Selection(tick.find, find.guide.offsetDeg, listOf(Candidate(tick.find, find.guide.offsetDeg, 0.0)))
+                    val findHere = findE != null && find?.guide?.inside == true
+                    if (findHere && findE != null && find != null) {
+                        selection = Selection(findE, find.guide.offsetDeg, listOf(Candidate(findE, find.guide.offsetDeg, 0.0)))
                     }
                     // Looking at the ground nearby shows the current place, unless a visible target is aimed at.
                     val yields = CityMode.yieldsToTarget(selection.best, aim)
@@ -409,7 +419,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         // A change of the observer altitude (stairs, lift) also needs a new visibility pass, even when standing still.
-        val eyeNow = observerEyeAltitude(fix)
+        val eyeNow = observerEye(fix)?.losM
         val previousEye = lastLosEyeAlt
         val eyeChanged = eyeNow != null && previousEye != null && abs(eyeNow - previousEye) > AppConfig.ALT_RECALC_M
         val needLos = lastLosFix?.let { moved(it, fix) > AppConfig.LOS_RECALC_DISTANCE_M } ?: true
@@ -433,22 +443,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         losJob?.cancel()
         losJob = viewModelScope.launch {
             val result = withContext(Dispatchers.Default) {
-                val eyeAlt = observerEyeAltitude(fix)
+                val eye = observerEye(fix)
+                val eyeAlt = eye?.losM
                 val nearby = targets.within(fix.lat, fix.lon, AppConfig.MIN_TARGET_RANGE_M, AppConfig.MAX_TARGET_RANGE_M)
                 // At 50 km a full pass can take noticeable time; cancellation is checked per target
                 // so a newer fix replaces a stale computation immediately.
-                val evals = if (eyeAlt == null) {
+                val evals = if (eye == null) {
                     emptyList()
                 } else {
                     nearby.map {
                         ensureActive()
-                        losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, it)
+                        losCalculator.evaluate(fix.lat, fix.lon, eye.losM, it, eye.bestM)
                     }
                 }
                 // Find works at any range: without an eye altitude only bearing and range are known.
                 val found = findTarget.value?.let { t ->
-                    if (eyeAlt != null) {
-                        losCalculator.evaluate(fix.lat, fix.lon, eyeAlt, t)
+                    if (eye != null) {
+                        losCalculator.evaluate(fix.lat, fix.lon, eye.losM, t, eye.bestM)
                     } else {
                         TargetEvaluation(
                             t, GeoMath.bearingDeg(fix.lat, fix.lon, t.latitude, t.longitude),
@@ -456,7 +467,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         )
                     }
                 }
-                Pass(eyeAlt, evals, found, evaluateCity(fix, eyeAlt))
+                Pass(eye?.bestM, evals, found, evaluateCity(fix, eyeAlt))
             }
             lastEyeAlt = result.eyeAlt
             _ui.value = _ui.value.copy(observerEyeAltM = result.eyeAlt)
@@ -505,20 +516,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /**
-     * Observer eye altitude, m MSL.
-     *   base   = DEM ground + the height above ground chosen in Settings (GPS vertical error is several times larger).
-     *   sensor = barometer + GPS altitude, used (when enabled and certain enough) only to RAISE the base, and only by
-     *            its lower bound (altitude - ALT_LOWER_BOUND_SIGMAS * sigma): on a high floor or a roof the terrain model
-     *            would otherwise place the observer at street level and nearby buildings would hide every target.
+     * Observer eye altitude, m MSL (see EyeAltitudeModel): the terrain model plus the height above ground chosen in Settings,
+     * averaged with the barometer + GPS estimate when both agree, and taken from the sensor alone on a high floor or a roof
+     * (the terrain model would otherwise place the observer at street level and nearby buildings would hide every target).
+     * Without terrain data the GPS altitude is the only evidence.
      */
-    private fun observerEyeAltitude(fix: ObserverFix): Double? {
-        val ground = dem.elevationM(fix.lat, fix.lon) ?: return fix.mslAltitudeM
-        val base = ground + UserSettings.observerHeightM(getApplication<Application>())
-        if (!UserSettings.sensorHeightEnabled(getApplication<Application>())) return base
-        val sensor = sensorAltitude() ?: return base
-        if (sensor.sigmaM > AppConfig.ALT_AUTO_MAX_SIGMA_M) return base
-        val bound = sensor.altM - AppConfig.ALT_LOWER_BOUND_SIGMAS * sensor.sigmaM
-        return max(base, bound).coerceAtMost(ground + AppConfig.OBSERVER_HEIGHT_MAX_M)
+    private fun observerEye(fix: ObserverFix): EyeAltitude? {
+        val app = getApplication<Application>()
+        val ground = dem.elevationM(fix.lat, fix.lon)
+            ?: return fix.mslAltitudeM?.let { EyeAltitude(it, it, fix.verticalAccuracyM?.toDouble() ?: AppConfig.ALTITUDE_SIGMA_DEFAULT_M) }
+        val sensor = if (UserSettings.sensorHeightEnabled(app)) sensorAltitude() else null
+        return EyeAltitudeModel.estimate(ground, UserSettings.observerHeightM(app), sensor)
     }
 
     private fun moved(a: ObserverFix, b: ObserverFix) = GeoMath.distanceM(a.lat, a.lon, b.lat, b.lon)
