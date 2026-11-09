@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -17,7 +17,7 @@ import kotlin.math.sqrt
 data class EyeAltitude(val bestM: Double, val losM: Double, val sigmaM: Double)
 
 /**
- * Combines the two independent altitude evidences:
+ * Combines the two independent altitude evidences (the terrain one is a prior that is wrong above ground level, hence the cases below):
  *   terrain = DEM ground + the height above ground chosen in Settings (sigma AppConfig.DEM_GROUND_SIGMA_M: terrain model and position error);
  *   sensor  = barometer + GPS (BaroGpsFusion, its own sigma).
  * Cases, decided by the difference d = sensor - terrain against its combined sigma:
