@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.24
+// Version 1.25
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -99,8 +99,7 @@ object AppConfig {
     const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
     const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
     const val CITY_SEARCH_RADIUS_M = 15_000.0 // m, the current city is the nearest settlement within this range
-    const val CITY_AZIMUTH_TOL_DEG = 30.0     // deg, the current place is the settlement nearest in azimuth, if within this of the camera direction
-    const val CITY_AZIMUTH_SWITCH_MARGIN_DEG = 10.0 // deg, another settlement replaces the current one only when this much closer in azimuth
+    const val CITY_SWITCH_MARGIN_M = 150.0    // m, another settlement replaces the current one only when this much nearer to the aimed ground point
 
     // ===== Parameters: find (free-text place search) =====
     const val FIND_MAX_RESULTS = 10           // places listed for the user to choose from
@@ -196,7 +195,7 @@ object AppConfig {
         require(CITY_YIELD_MARGIN_M >= 0 && CITY_MODE_EXIT_DEG < 0) { "Invalid city-mode parameters" }
         require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
         require(SELECTION_HOLD_MS >= 0 && SELECTION_LOST_MS >= 0 && SELECTION_SWITCH_RATIO in 0.0..1.0) { "Invalid selection stability parameters" }
-        require(CITY_AZIMUTH_TOL_DEG > 0 && CITY_AZIMUTH_SWITCH_MARGIN_DEG >= 0) { "Invalid current-city azimuth parameters" }
+        require(CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city switch margin" }
         require(CITY_SEARCH_RADIUS_M > 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }

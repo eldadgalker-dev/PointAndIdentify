@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify
 
 import kotlin.math.tan
@@ -73,32 +73,48 @@ class StabilityTest {
     }
 
     @Test
-    fun cityIsTheSettlementNearestInAzimuthNotNearestOverall() {
-        val east = eval("East", bearing = 90.0, distanceM = 1_000.0)
-        val behind = eval("Behind", bearing = 270.0, distanceM = 200.0) // nearest overall
-        val picked = CityPicker.pick(listOf(east, behind), 88.0, null)
-        assertEquals("East", picked?.target?.name)
+    fun cityStraightDownIsTheNearestSettlementWhateverTheAzimuth() {
+        // Field finding 2026-11-13: 350 m from the nearest settlement, pointing down showed places 9 to 15 km away.
+        val near = eval("Near", bearing = 200.0, distanceM = 350.0)
+        val far = eval("Far", bearing = 90.0, distanceM = 12_000.0)
+        val list = listOf(far, near)
+        for (azimuth in listOf(0.0, 88.0, 90.0, 180.0, 270.0, 359.0)) {
+            assertEquals("Near", CityPicker.pick(list, azimuth, 0.0, null)?.target?.name)
+            // No ground point known (no terrain on the way): the point under the observer is used.
+            assertEquals("Near", CityPicker.pick(list, azimuth, null, null)?.target?.name)
+        }
     }
 
     @Test
-    fun cityFallsBackToNearestOverallWhenNobodyIsInTheCameraDirection() {
+    fun cityIsTheSettlementNearestToTheAimedGroundPoint() {
         val east = eval("East", bearing = 90.0, distanceM = 1_000.0)
-        val behind = eval("Behind", bearing = 270.0, distanceM = 200.0)
-        assertEquals("Behind", CityPicker.pick(listOf(east, behind), 180.0, null)?.target?.name)
+        val behind = eval("Behind", bearing = 270.0, distanceM = 200.0) // nearest to the observer
+        val list = listOf(east, behind)
+        // Aimed 900 m to the east: 100 m from East, 1100 m from Behind.
+        assertEquals(100.0, CityPicker.distanceToAimM(east, 90.0, 900.0), 0.01)
+        assertEquals(1_100.0, CityPicker.distanceToAimM(behind, 90.0, 900.0), 0.01)
+        assertEquals("East", CityPicker.pick(list, 90.0, 900.0, null)?.target?.name)
+        // Lowering the camera brings the aimed point to 100 m: the nearer place, never a farther one.
+        assertEquals("Behind", CityPicker.pick(list, 90.0, 100.0, null)?.target?.name)
+        // A point at a right angle: plane distance sqrt(1000^2 + 900^2).
+        assertEquals(1_345.36, CityPicker.distanceToAimM(east, 0.0, 900.0), 0.01)
     }
 
     @Test
-    fun cityKeepsThePreviousSettlementAgainstSmallTurns() {
+    fun cityKeepsThePreviousSettlementAgainstSmallChanges() {
         val first = eval("First", bearing = 90.0, distanceM = 1_000.0)
-        val second = eval("Second", bearing = 100.0, distanceM = 800.0)
+        val second = eval("Second", bearing = 270.0, distanceM = 1_000.0)
         val list = listOf(first, second)
-        val held = CityPicker.pick(list, 88.0, null) // First (offset 2)
+        val held = CityPicker.pick(list, 90.0, 500.0, null)
         assertEquals("First", held?.target?.name)
-        // Second is closer in azimuth from 97 degrees on (offset 3 against 7), but not by the 10 degree margin.
-        assertEquals("First", CityPicker.pick(list, 97.0, held)?.target?.name)
-        assertEquals("First", CityPicker.pick(list, 110.0, held)?.target?.name)
-        // From 125 degrees First is out of the tolerance: the change is taken.
-        assertEquals("Second", CityPicker.pick(list, 125.0, held)?.target?.name)
+        // Straight down both are equally far: the shown one stays.
+        assertEquals("First", CityPicker.pick(list, 270.0, 0.0, held)?.target?.name)
+        // Aimed 50 m towards Second: nearer by 100 m only, below the switch margin.
+        assertEquals("First", CityPicker.pick(list, 270.0, 50.0, held)?.target?.name)
+        // Aimed 200 m towards Second: nearer by 400 m, the change is taken.
+        assertEquals("Second", CityPicker.pick(list, 270.0, 200.0, held)?.target?.name)
+        // A previous place that left the search range does not hold the choice.
+        assertEquals("Second", CityPicker.pick(listOf(second), 90.0, 500.0, held)?.target?.name)
     }
 
     @Test

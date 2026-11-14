@@ -1,11 +1,13 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
-import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.max
+import kotlin.math.sqrt
 
 /** Identity of a target across passes (the evaluation objects are rebuilt on every pass). */
 private fun keyOf(e: TargetEvaluation) = "${e.target.name}|${e.target.latitude}|${e.target.longitude}"
@@ -90,28 +92,37 @@ class SelectionStabilizer {
 }
 
 /**
- * The "current place" shown when the camera points down: the settlement nearest in AZIMUTH (the one the camera was
- * turned towards), not the nearest overall. Without a settlement within CITY_AZIMUTH_TOL_DEG of the camera azimuth
- * the nearest settlement overall is used. The previous choice is kept until another one is better by
- * CITY_AZIMUTH_SWITCH_MARGIN_DEG, so hand shake does not swap places.
+ * The "current place" shown when the camera points at the ground nearby: the settlement nearest to the AIMED GROUND
+ * POINT, the point at aimDistanceM from the observer in the camera azimuth (AimRay). Straight down that point lies
+ * under the observer, so the nearest settlement is shown whatever the compass says (the azimuth of a camera pointing
+ * down is meaningless and jumps with every small movement). Lowering the camera moves the aimed point towards the
+ * observer, so it can never bring up a farther place. Without a known ground point (no terrain data on the way) the
+ * point under the observer is used. The previous choice is kept until another settlement is nearer to the aimed point
+ * by CITY_SWITCH_MARGIN_M, so hand shake does not swap places.
+ * Field finding 2026-11-13: the earlier choice by azimuth alone showed settlements 9 to 15 km away, a different one
+ * on every shot, from a point 350 m from the nearest settlement.
  */
 object CityPicker {
 
-    private fun offsetDeg(azimuthDeg: Double, e: TargetEvaluation) = abs(FindGuidance.signedDiffDeg(azimuthDeg, e.bearingDeg))
+    /**
+     * Horizontal distance, m, from the aimed ground point to a place. Plane geometry around the observer (law of
+     * cosines); the error over the CITY_SEARCH_RADIUS_M range is far below the switch margin.
+     */
+    fun distanceToAimM(e: TargetEvaluation, azimuthDeg: Double, aimDistanceM: Double): Double {
+        val d = max(aimDistanceM, 0.0)
+        val square = e.distanceM * e.distanceM + d * d - 2.0 * e.distanceM * d * cos(Math.toRadians(azimuthDeg - e.bearingDeg))
+        return sqrt(max(square, 0.0)) // rounding can give a tiny negative value when the point is on the place
+    }
 
-    fun pick(candidates: List<TargetEvaluation>, azimuthDeg: Double, previous: TargetEvaluation?): TargetEvaluation? {
+    fun pick(
+        candidates: List<TargetEvaluation>, azimuthDeg: Double, aimDistanceM: Double?, previous: TargetEvaluation?
+    ): TargetEvaluation? {
         if (candidates.isEmpty()) return null
-        val aligned = candidates.filter { offsetDeg(azimuthDeg, it) <= AppConfig.CITY_AZIMUTH_TOL_DEG }
-        val best = if (aligned.isNotEmpty()) {
-            aligned.minWith(compareBy({ offsetDeg(azimuthDeg, it) }, { it.distanceM }))
-        } else {
-            candidates.minBy { it.distanceM }
-        }
+        val aim = aimDistanceM ?: 0.0
+        val best = candidates.minBy { distanceToAimM(it, azimuthDeg, aim) }
         val keep = previous?.let { p -> candidates.firstOrNull { keyOf(it) == keyOf(p) } } ?: return best
         if (keyOf(best) == keyOf(keep)) return keep
-        if (aligned.isEmpty()) return keep // nobody in the camera direction: keep the previous place
-        val keepIsAligned = offsetDeg(azimuthDeg, keep) <= AppConfig.CITY_AZIMUTH_TOL_DEG
-        if (keepIsAligned && offsetDeg(azimuthDeg, best) + AppConfig.CITY_AZIMUTH_SWITCH_MARGIN_DEG >= offsetDeg(azimuthDeg, keep)) return keep
-        return best
+        val gainM = distanceToAimM(keep, azimuthDeg, aim) - distanceToAimM(best, azimuthDeg, aim)
+        return if (gainM > AppConfig.CITY_SWITCH_MARGIN_M) best else keep
     }
 }
