@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.5
+# Version 2.6
 """Cuts SRTM1 .hgt files into 0.1 x 0.1 degree gzip tiles for the PointAndIdentify app, then rebuilds the manifest.
 
 Conventions
@@ -40,7 +40,7 @@ SUB_TILES = 10              # sub-tiles per degree per axis -> 0.1 deg tiles
 SUB_STEP = 360              # samples between sub-tile edges = (HGT_SAMPLES - 1) / SUB_TILES
 TILE_SAMPLES = SUB_STEP + 1 # 361, edges shared with neighbours
 VOID = -32768               # SRTM void marker
-VOID_FILL_ITER = 200        # max neighbour-averaging passes for void filling
+VOID_FILL_ITER = 200        # neighbour-averaging passes above which a filled void counts as large and is reported
 GZIP_LEVEL = 9
 BBOX_EPS = 1e-9             # deg, absorbs float error on tile/bbox edges
 DEFAULT_BBOX = (28.9, 33.6, 34.0, 36.7)  # deg (min_lat, min_lon, max_lat, max_lon), ESTIMATE: core + buffer
@@ -81,13 +81,14 @@ def read_hgt(path: Path) -> np.ndarray:
 
 
 def fill_voids(grid: np.ndarray) -> np.ndarray:
-    """Iteratively replaces voids with the mean of valid 4-neighbours; leftovers become 0 and are reported."""
+    """Replaces voids with the mean of valid 4-neighbours, pass after pass, until none is left (large voids are reported)."""
     g = grid.astype(np.float64)
     mask = grid == VOID
     if not mask.any():
         return grid
     g[mask] = np.nan
-    for _ in range(VOID_FILL_ITER):
+    passes = 0
+    while True:
         nan = np.isnan(g)
         if not nan.any():
             break
@@ -96,11 +97,18 @@ def fill_voids(grid: np.ndarray) -> np.ndarray:
         count = np.sum(~np.isnan(neigh), axis=0)
         total = np.nansum(neigh, axis=0)
         fillable = nan & (count > 0)
+        if not fillable.any():
+            break  # no valid sample in the whole grid: nothing to interpolate from
         g[fillable] = total[fillable] / count[fillable]
+        passes += 1
+    if passes > VOID_FILL_ITER:
+        # Every void sample got a value from its surroundings (never 0 m), but far from real data it is a guess.
+        print(f"WARNING: a void needed {passes} filling passes (about {2 * passes} samples wide); "
+              f"its inner terrain is interpolated from the rim")
     left = int(np.isnan(g).sum())
     if left:
-        # A void wider than 2 * VOID_FILL_ITER samples: the 0 m filling is wrong terrain, so it must show in the log.
-        print(f"WARNING: {left} void samples were not filled after {VOID_FILL_ITER} passes and are set to 0 m")
+        # Only possible when the file holds no valid sample at all.
+        print(f"WARNING: the whole grid is void ({left} samples); it is set to 0 m")
     g[np.isnan(g)] = 0.0
     return np.rint(g).astype(np.int32)
 

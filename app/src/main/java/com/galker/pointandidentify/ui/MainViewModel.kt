@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.25
+// Version 1.26
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.domain.PointingUncertainty
@@ -141,6 +141,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // settlements within the search radius, and the private point (for example Home) the observer stands at, if any
     private val cityEval = MutableStateFlow(CityData(emptyList(), null))
     private var cityHeld: TargetEvaluation? = null       // the settlement shown now (CityPicker keeps it against shakes)
+    // The settlements with bearing and range from the latest fix (a pass is restarted only after LOS_RECALC_DISTANCE_M).
+    private var cityGeoFix: ObserverFix? = null
+    private var cityGeoData: CityData? = null
+    private var cityGeo: List<TargetEvaluation> = emptyList()
     private val selectionStabilizer = SelectionStabilizer()
     private var lookingDown = false
     private var aimNear = false // the camera axis meets the ground within the current-location circle (with hysteresis)
@@ -198,7 +202,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
 
         viewModelScope.launch {
-            locationProvider.fix.filterNotNull().collect { onFix(it) }
+            locationProvider.fix.collect { if (it != null) onFix(it) else onFixLost() }
         }
 
         viewModelScope.launch {
@@ -250,12 +254,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val aim = cast?.takeIf { it.isFinite() }
                     // A ray that overflies the whole range aims at a point at least AIM_RAY_MAX_M away: the current place is
                     // then searched there, not under the observer (which is right only when the ground point is unknown).
-                    val cityAim = if (cast == AimRay.BEYOND_RANGE) AppConfig.AIM_RAY_MAX_M else aim
+                    // Terrain unknown on the way: a flat-ground estimate from the height above the ground under the observer.
+                    val cityAim = when {
+                        cast == AimRay.BEYOND_RANGE -> AppConfig.AIM_RAY_MAX_M
+                        aim != null -> aim
+                        fixNow != null && eyeNow != null -> terrain.elevationM(fixNow.lat, fixNow.lon)
+                            ?.let { AimRay.flatDistanceM(eyeNow - it, o.cameraElevationDeg) }
+                        else -> null
+                    }
                     // The current place = the settlement nearest to the aimed ground point (under the observer when the
                     // ray meets no ground, e.g. straight down without terrain data), never the nearest in azimuth alone.
+                    // A camera that does not point down aims at no ground: the held place is kept and not re-chosen, so
+                    // raising and lowering the phone does not pull the choice to the place nearest to the observer.
                     // A saved place the observer stands at (Home) is the current place, wherever the camera points.
                     val city = tick.city.here
-                        ?: CityPicker.pick(tick.city.settlements, o.trueAzimuthDeg, cityAim, cityHeld).also { cityHeld = it }
+                        ?: if (AimRay.pointsDown(o.cameraElevationDeg)) {
+                            CityPicker.pick(settlementsFrom(fixNow, tick.city), o.trueAzimuthDeg, cityAim, cityHeld).also { cityHeld = it }
+                        } else cityHeld
                     aimNear = when {
                         aim == null -> false
                         aim <= AppConfig.CITY_AIM_RADIUS_M -> true
@@ -394,6 +409,42 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun sensorAltitude(): AltitudeEstimate? {
         val pressure = pressureProvider.pressureHpa.value ?: return null
         return altitudeFusion.estimate(pressure)
+    }
+
+    /**
+     * The position was dropped (LocationProvider discards an old fix when it restarts): nothing computed from it may
+     * stay on the screen, which shows "waiting for location" until a new fix arrives.
+     */
+    private fun onFixLost() {
+        if (_ui.value.fix == null) return // nothing was shown yet (the first value of the flow)
+        losJob?.cancel()
+        lastLosFix = null
+        lastLosEyeAlt = null
+        lastEyeAlt = null
+        evaluations.value = emptyList()
+        findEval.value = null
+        cityEval.value = CityData(emptyList(), null)
+        cityHeld = null
+        _ui.value = _ui.value.copy(
+            fix = null, observerEyeAltM = null, sensorHeightM = null, sensorSigmaM = null,
+            target = null, candidates = emptyList(), cityMode = false, aimDistanceM = null, find = null
+        )
+    }
+
+    /** The settlements of the last pass with bearing and range measured from the given (latest) fix. */
+    private fun settlementsFrom(fix: ObserverFix?, data: CityData): List<TargetEvaluation> {
+        if (fix == null) return data.settlements
+        if (fix !== cityGeoFix || data !== cityGeoData) {
+            cityGeo = data.settlements.map {
+                it.copy(
+                    bearingDeg = GeoMath.bearingDeg(fix.lat, fix.lon, it.target.latitude, it.target.longitude),
+                    distanceM = GeoMath.distanceM(fix.lat, fix.lon, it.target.latitude, it.target.longitude)
+                )
+            }
+            cityGeoFix = fix
+            cityGeoData = data
+        }
+        return cityGeo
     }
 
     private fun onFix(fix: ObserverFix) {

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -47,7 +47,7 @@ object AimRay {
         azimuthDeg: Double,
         elevationDeg: Double
     ): Double? {
-        if (elevationDeg >= -MIN_DOWN_DEG) return null
+        if (!pointsDown(elevationDeg)) return null
         val slope = tan(Math.toRadians(elevationDeg)) // negative
         val az = Math.toRadians(azimuthDeg)
         val dxLat = cos(az)
@@ -73,6 +73,20 @@ object AimRay {
             x += AppConfig.DEM_SAMPLE_SPACING_M
         }
         return BEYOND_RANGE
+    }
+
+    /** True when the camera axis points below the horizon, so that it can meet the ground at all. */
+    fun pointsDown(elevationDeg: Double): Boolean = elevationDeg < -MIN_DOWN_DEG
+
+    /**
+     * Flat-ground estimate of the aimed distance, m, for a camera pointing down from heightAboveGroundM: used when the
+     * terrain on the way is unknown, so that the aimed point does not fall back to the point under the observer.
+     * Limited to AIM_RAY_MAX_M; null when the camera does not point down.
+     */
+    fun flatDistanceM(heightAboveGroundM: Double, elevationDeg: Double): Double? {
+        if (!pointsDown(elevationDeg) || heightAboveGroundM.isNaN()) return null
+        val height = maxOf(heightAboveGroundM, AppConfig.AIM_MIN_EYE_ABOVE_GROUND_M)
+        return minOf(height / -tan(Math.toRadians(elevationDeg)), AppConfig.AIM_RAY_MAX_M)
     }
 
     /** Result of castM for a ray that points down over known terrain and meets no ground within AIM_RAY_MAX_M. */

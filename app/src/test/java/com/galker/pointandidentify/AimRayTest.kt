@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.domain.AimRay
@@ -54,6 +54,16 @@ class AimRayTest {
         assertEquals(250.0, AimRay.castM(flat, lat0, lon0, 100.0, 90.0, -21.8)!!, 5.0)
         assertNull(AimRay.castM(flat, lat0, lon0, 100.0, 90.0, 5.0)) // not pointing down
         assertNull(AimRay.castM(TerrainSource { _, _ -> null }, lat0, lon0, 100.0, 90.0, -20.0)) // no terrain data
+    }
+
+    @Test
+    fun flatEstimateReplacesAnUnknownTerrain() {
+        // 100 m up, tan(21.8) = 0.4 -> 250 m; never beyond the range of the ray; nothing when not pointing down.
+        assertEquals(250.0, AimRay.flatDistanceM(100.0, -21.8)!!, 0.5)
+        assertEquals(5_000.0, AimRay.flatDistanceM(100.0, -0.3)!!, 0.0)
+        assertNull(AimRay.flatDistanceM(100.0, 5.0))
+        // An eye below the model ground still aims a little ahead, never at a negative distance.
+        assertEquals(0.5, AimRay.flatDistanceM(-3.0, -45.0)!!, 0.01)
     }
 
     @Test
