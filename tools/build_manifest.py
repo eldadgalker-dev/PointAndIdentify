@@ -2,13 +2,14 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.1
+# Version 2.2
 """Builds data/manifest.json from data/tiles/*.bin.gz, coverage.json, sea.json and data/targets.json.
 
 Conventions
   Paths      : relative to the data/ directory (as fetched by the app)
   Hashes     : SHA-256 hex of the exact file bytes in the repository
-  Version    : monotonically increasing integer (UTC timestamp, seconds)
+  Version    : monotonically increasing integer (UTC timestamp, seconds, of the last change of the content); a build
+               with unchanged content keeps the version, so an unchanged data run commits nothing
 """
 
 import argparse
@@ -88,6 +89,15 @@ def main() -> None:
     args = ap.parse_args()
     manifest = build(args.data)
     out = args.data / "manifest.json"
+    if out.is_file():
+        try:
+            prev = json.loads(out.read_text(encoding="utf-8"))
+        except ValueError:
+            prev = None  # a corrupt file is simply replaced
+        same = isinstance(prev, dict) and isinstance(prev.get("version"), int) and \
+            {k: v for k, v in prev.items() if k != "version"} == {k: v for k, v in manifest.items() if k != "version"}
+        if same:
+            manifest["version"] = prev["version"]
     out.write_text(json.dumps(manifest, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     total = sum(t["bytes"] for t in manifest["tiles"].values())
     print(f"manifest.json: {len(manifest['tiles'])} land tiles, {len(manifest['sea_tiles'])} sea tiles, "

@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 3.4
+# Version 3.5
 """Builds data/targets.json (settlements + aimable landmarks) from OpenStreetMap (Overpass API).
 
 Scope
@@ -53,7 +53,6 @@ OVERPASS_ENDPOINTS = (
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
-    "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
 )
 # Overpass operators reject anonymous library user agents (HTTP 406/403); identify the client.
 HTTP_HEADERS = {
@@ -72,6 +71,7 @@ ANCHOR_DECIMALS = 3                       # ~100 m, enough for buffer tests
 DEDUPE_DECIMALS = 3                       # ~100 m, same name within this grid = duplicate
 KM_PER_DEG_LAT = 111.32
 DISTANCE_CHUNK = 2000                     # candidates per vectorised distance block
+MIN_KEEP_RATIO = 0.8                      # a result with fewer items than this share of the published list is refused
 
 # Kind code -> list of (OSM key, regex of values). Order = priority when an object matches several.
 KIND_SELECTORS = [
@@ -88,6 +88,7 @@ KIND_SELECTORS = [
 
 # Validation
 assert NEIGHBOR_BUFFER_KM > 0, "NEIGHBOR_BUFFER_KM must be positive"
+assert 0 < MIN_KEEP_RATIO <= 1, "MIN_KEEP_RATIO must be in (0, 1]"
 assert SEARCH_BBOX[0] < SEARCH_BBOX[2] and SEARCH_BBOX[1] < SEARCH_BBOX[3], "SEARCH_BBOX must satisfy MIN < MAX"
 
 
@@ -223,6 +224,8 @@ def main() -> None:
     repo = tools.parent
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--buffer-km", type=float, default=NEIGHBOR_BUFFER_KM)
+    ap.add_argument("--allow-shrink", action="store_true",
+                    help=f"accept a result with fewer than {MIN_KEEP_RATIO:.0%} of the published items")
     args = ap.parse_args()
     if args.buffer_km <= 0:
         sys.exit("--buffer-km must be positive")
@@ -245,6 +248,12 @@ def main() -> None:
     items = dedupe(core_items + border)
     out = repo / "data" / "targets.json"
     prev = json.loads(out.read_text(encoding="utf-8")) if out.is_file() else {"version": 0, "items": []}
+    # A truncated answer of an Overpass instance (accepted as valid JSON) must not replace the published list: the
+    # terrain mask is derived from it, so a shrunken list would also delete terrain tiles.
+    prev_count = len(prev.get("items") or [])
+    if len(items) < MIN_KEEP_RATIO * prev_count and not args.allow_shrink:
+        sys.exit(f"Result has {len(items)} items, the published list has {prev_count} (below {MIN_KEEP_RATIO:.0%}); "
+                 f"existing files left unchanged. Pass --allow-shrink when the drop is real.")
     # Version increments only when content changes, so the app does not re-download identical data.
     version = prev["version"] + 1 if prev.get("items") != items else prev["version"]
     out.write_text(json.dumps({"version": version, "items": items}, ensure_ascii=False, indent=1) + "\n",

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.2
+// Version 1.3
 package com.galker.pointandidentify.data.net
 
 import android.util.Log
@@ -19,10 +19,17 @@ import java.security.MessageDigest
 /** Minimal HTTPS client without third-party dependencies. All calls run on Dispatchers.IO. */
 class HttpClient {
 
-    suspend fun getBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
+    /**
+     * Reads a whole response into memory. maxBytes bounds it: a response that declares or delivers more is refused
+     * before the memory is taken, so a wrong or hostile host cannot exhaust the heap. Large files use download().
+     */
+    suspend fun getBytes(url: String, maxBytes: Long = AppConfig.HTTP_MAX_MEMORY_BYTES): ByteArray = withContext(Dispatchers.IO) {
+        require(maxBytes > 0) { "maxBytes must be positive" }
         val conn = open(url)
         try {
             checkStatus(conn, url)
+            val declared = conn.contentLengthLong // -1 when unknown (chunked or transparently decompressed)
+            if (declared > maxBytes) throw IOException("Response too large ($declared bytes, limit $maxBytes): $url")
             conn.inputStream.use { input ->
                 val out = ByteArrayOutputStream()
                 val buf = ByteArray(BUFFER_SIZE)
@@ -32,7 +39,7 @@ class HttpClient {
                     val n = input.read(buf)
                     if (n < 0) break
                     total += n
-                    if (total > AppConfig.HTTP_MAX_BYTES) throw IOException("Response too large: $url")
+                    if (total > maxBytes) throw IOException("Response too large (limit $maxBytes): $url")
                     out.write(buf, 0, n)
                 }
                 out.toByteArray()
@@ -49,12 +56,12 @@ class HttpClient {
      * unreachable) the same path is requested from the second host. Callers verify SHA-256 against the manifest, so a
      * stale or tampered mirror copy is rejected rather than trusted.
      */
-    suspend fun getDataBytes(relativePath: String): ByteArray = try {
-        getBytes("${AppConfig.DATA_BASE_URL}/$relativePath")
+    suspend fun getDataBytes(relativePath: String, maxBytes: Long = AppConfig.HTTP_MAX_MEMORY_BYTES): ByteArray = try {
+        getBytes("${AppConfig.DATA_BASE_URL}/$relativePath", maxBytes)
     } catch (e: IOException) {
         Log.w(TAG, "Main data host failed for $relativePath (${e.message}); trying the second host")
         try {
-            getBytes("${AppConfig.DATA_FALLBACK_URL}/$relativePath")
+            getBytes("${AppConfig.DATA_FALLBACK_URL}/$relativePath", maxBytes)
         } catch (e2: IOException) {
             e.addSuppressed(e2)
             throw e

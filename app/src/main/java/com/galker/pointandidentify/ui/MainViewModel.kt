@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.24
+// Version 1.25
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.domain.PointingUncertainty
@@ -244,14 +244,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // Where the camera axis meets the ground (terrain ray cast from the real eye altitude).
                     val fixNow = _ui.value.fix
                     val eyeNow = lastEyeAlt
-                    val aim = if (fixNow != null && eyeNow != null) {
-                        AimRay.groundDistanceM(terrain, fixNow.lat, fixNow.lon, eyeNow, o.trueAzimuthDeg, o.cameraElevationDeg)
+                    val cast = if (fixNow != null && eyeNow != null) {
+                        AimRay.castM(terrain, fixNow.lat, fixNow.lon, eyeNow, o.trueAzimuthDeg, o.cameraElevationDeg)
                     } else null
+                    val aim = cast?.takeIf { it.isFinite() }
+                    // A ray that overflies the whole range aims at a point at least AIM_RAY_MAX_M away: the current place is
+                    // then searched there, not under the observer (which is right only when the ground point is unknown).
+                    val cityAim = if (cast == AimRay.BEYOND_RANGE) AppConfig.AIM_RAY_MAX_M else aim
                     // The current place = the settlement nearest to the aimed ground point (under the observer when the
                     // ray meets no ground, e.g. straight down without terrain data), never the nearest in azimuth alone.
                     // A saved place the observer stands at (Home) is the current place, wherever the camera points.
                     val city = tick.city.here
-                        ?: CityPicker.pick(tick.city.settlements, o.trueAzimuthDeg, aim, cityHeld).also { cityHeld = it }
+                        ?: CityPicker.pick(tick.city.settlements, o.trueAzimuthDeg, cityAim, cityHeld).also { cityHeld = it }
                     aimNear = when {
                         aim == null -> false
                         aim <= AppConfig.CITY_AIM_RADIUS_M -> true

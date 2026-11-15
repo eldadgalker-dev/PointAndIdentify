@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.3
+// Version 1.4
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -41,12 +41,21 @@ class ManifestRepository(context: Context, private val http: HttpClient) {
             try {
                 val text = http.getDataText(AppConfig.MANIFEST_FILE)
                 val parsed = DataManifest.parse(text) // parse before caching: never persist a corrupt file
-                // Atomic: a crash in the middle of the write must not leave a corrupt cache.
-                val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
-                tmp.writeText(text)
-                if (!tmp.renameTo(cacheFile)) cacheFile.writeText(text)
-                _offline.value = false
-                _manifest.value = parsed
+                val current = _manifest.value ?: loadCached()
+                if (current != null && parsed.version < current.version) {
+                    // The version is the time of the last data change. An older copy (the second host can lag behind the
+                    // main one) must not replace newer data: its tile hashes would no longer match the files.
+                    Log.w(TAG, "Remote manifest ${parsed.version} is older than the known ${current.version}; kept the known one")
+                    _offline.value = false
+                    _manifest.value = current
+                } else {
+                    // Atomic: a crash in the middle of the write must not leave a corrupt cache.
+                    val tmp = File(cacheFile.parentFile, cacheFile.name + ".tmp")
+                    tmp.writeText(text)
+                    if (!tmp.renameTo(cacheFile)) cacheFile.writeText(text)
+                    _offline.value = false
+                    _manifest.value = parsed
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Remote manifest unavailable, using cache", e)
                 _offline.value = true

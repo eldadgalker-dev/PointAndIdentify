@@ -2,7 +2,7 @@
 # Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 # This software is released under the BSD 3-Clause License.
 # See the LICENSE.txt file in the project root for full license information.
-# Version 2.4
+# Version 2.5
 """Cuts SRTM1 .hgt files into 0.1 x 0.1 degree gzip tiles for the PointAndIdentify app, then rebuilds the manifest.
 
 Conventions
@@ -14,9 +14,11 @@ Conventions
                buffer_km + TILE_HALF_DIAG_KM of an anchor are processed (core + border strip only)
   Sea        : processed sub-tiles with no sample above 0 m go to data/tiles/sea.json (app uses 0 m). The source
                holds sea-floor depths (down to -1500 m), so depth alone cannot tell sea from land. Exception: tiles
-               inside BELOW_SEA_LEVEL_LAND_BOXES (Dead Sea, Arava, Jordan valley, up to -450 m) are land and are stored.
+               inside BELOW_SEA_LEVEL_LAND_BOXES (Dead Sea, Arava, Jordan valley, Sea of Galilee, up to -450 m) are land
+               and are stored.
                Masked tiles without an HGT file are reported and left unknown, unless --missing-as-sea; even then a
                missing tile that borders land higher than SEA_EDGE_MAX_M stays unknown (terrain cannot just stop)
+  Safety     : stale tiles are removed only after the new set passed the MIN_KEEP_RATIO check against the tiles on disk
   Determinism: gzip mtime = 0, so unchanged input yields byte-identical files (no git churn)
 """
 
@@ -47,15 +49,18 @@ TILE_HALF_DIAG_KM = 8.0     # km, half-diagonal of a 0.1 deg tile at ~30N is ~7.
 KM_PER_DEG_LAT = 111.32
 SEA_FLOOR_M = 5             # m, inside a below-sea-level land box, a tile reaching deeper than this below zero is land
 # Land that lies below sea level, as boxes (min_lat, min_lon, max_lat, max_lon) in degrees; ESTIMATE from the sea-floor
-# depths and positions of the tiles that were wrongly classified as sea (all east of 35.2 E, none on the coast).
-BELOW_SEA_LEVEL_LAND_BOXES = ((30.5, 35.2, 32.5, 35.7),)
+# depths and positions of the tiles that were wrongly classified as sea (all east of 35.2 E, none on the coast). The
+# north edge is 33.0 so that the Sea of Galilee and its shores (about -210 m, 32.7 to 32.9 N) are inside.
+BELOW_SEA_LEVEL_LAND_BOXES = ((30.5, 35.2, 33.0, 35.7),)
 SEA_EDGE_MAX_M = 10         # m, a missing tile cannot be sea when the shared edge of a neighbour is higher than this
+MIN_KEEP_RATIO = 0.8        # a build with fewer land tiles than this share of the tiles on disk is refused
 
 HGT_NAME = re.compile(r"^([NS])(\d{2})([EW])(\d{3})\.hgt$", re.IGNORECASE)
 
 # Validation of derived constants
 assert SUB_STEP * SUB_TILES == HGT_SAMPLES - 1, "SUB_STEP inconsistent with HGT_SAMPLES"
 assert TILE_SAMPLES == 361, "TILE_SAMPLES must match AppConfig.TILE_SAMPLES"
+assert 0 < MIN_KEEP_RATIO <= 1, "MIN_KEEP_RATIO must be in (0, 1]"
 
 
 def parse_corner(name: str):
@@ -76,7 +81,7 @@ def read_hgt(path: Path) -> np.ndarray:
 
 
 def fill_voids(grid: np.ndarray) -> np.ndarray:
-    """Iteratively replaces voids with the mean of valid 4-neighbours; leftovers become 0."""
+    """Iteratively replaces voids with the mean of valid 4-neighbours; leftovers become 0 and are reported."""
     g = grid.astype(np.float64)
     mask = grid == VOID
     if not mask.any():
@@ -92,6 +97,10 @@ def fill_voids(grid: np.ndarray) -> np.ndarray:
         total = np.nansum(neigh, axis=0)
         fillable = nan & (count > 0)
         g[fillable] = total[fillable] / count[fillable]
+    left = int(np.isnan(g).sum())
+    if left:
+        # A void wider than 2 * VOID_FILL_ITER samples: the 0 m filling is wrong terrain, so it must show in the log.
+        print(f"WARNING: {left} void samples were not filled after {VOID_FILL_ITER} passes and are set to 0 m")
     g[np.isnan(g)] = 0.0
     return np.rint(g).astype(np.int32)
 
@@ -190,6 +199,8 @@ def main() -> None:
     ap.add_argument("--buffer-km", type=float, default=None, help="default: value stored in anchors.json")
     ap.add_argument("--missing-as-sea", action="store_true",
                     help="treat masked tiles without an HGT file as sea (SRTM has no files for open sea)")
+    ap.add_argument("--allow-shrink", action="store_true",
+                    help=f"accept a build with fewer than {MIN_KEEP_RATIO:.0%} of the land tiles on disk")
     ap.add_argument("--data", type=Path, default=tools.parent / "data")
     args = ap.parse_args()
 
@@ -213,8 +224,7 @@ def main() -> None:
 
     out_dir = args.data / "tiles"
     out_dir.mkdir(parents=True, exist_ok=True)
-    for old in out_dir.glob("*.bin.gz"):
-        old.unlink()  # full rebuild: stale tiles outside the new mask must not survive
+    previous = sorted(out_dir.glob("*.bin.gz"))  # removed only after the new set passed the check below
 
     files = sorted(p for p in args.input.iterdir() if p.suffix.lower() == ".hgt")
     if not files:
@@ -232,6 +242,16 @@ def main() -> None:
         total_w += w
         if w or s:
             print(f"{p.name}: {w} land tiles, {s} sea tiles")
+
+    # A partial input (missing HGT files, a shrunken mask) must not wipe the published terrain: stop before anything
+    # is removed or listed. Tiles rewritten so far are valid; sea.json, coverage.json and the manifest are untouched.
+    if total_w < MIN_KEEP_RATIO * len(previous) and not args.allow_shrink:
+        sys.exit(f"Only {total_w} land tiles were built, {len(previous)} are on disk (below {MIN_KEEP_RATIO:.0%}); "
+                 f"nothing removed. Pass --allow-shrink when the drop is real.")
+    stored = {f"{i}_{j}.bin.gz" for i, j in edges}  # edges holds every land tile written in this run
+    for old in previous:
+        if old.name not in stored:
+            old.unlink()  # stale tiles outside the new mask must not survive
 
     # Masked tiles whose 1-degree cell had no HGT file.
     missing = sorted(k for k in wanted if (k[0] // SUB_TILES, k[1] // SUB_TILES) not in covered_cells)

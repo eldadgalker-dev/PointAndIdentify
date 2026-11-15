@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 2.0
+// Version 2.1
 package com.galker.pointandidentify.location
 
 import android.annotation.SuppressLint
@@ -62,6 +62,11 @@ class LocationProvider(context: Context) {
     @Volatile
     private var satellitesUsed: Int? = null
     private var currentRequest: CancellationTokenSource? = null
+    private var fixElapsedMs = 0L // elapsedRealtime of the measurement behind the published fix
+    // The filter is fed once per measurement: the two latest Location objects it saw, and its answer for them.
+    private var fedLast: Location? = null
+    private var fedPrevious: Location? = null
+    private var lastFiltered: FilteredPosition? = null
 
     private val _fix = MutableStateFlow<ObserverFix?>(null)
     val fix: StateFlow<ObserverFix?> = _fix
@@ -98,14 +103,22 @@ class LocationProvider(context: Context) {
             .setGranularity(Granularity.GRANULARITY_FINE)
             .build()
         filter.reset()
+        fedLast = null
+        fedPrevious = null
+        lastFiltered = null
         latestSystem = null
         latestGps = null
+        // A fix kept from before a pause may be far from the present position: an old one is dropped, so that the
+        // cached last location (when recent) or the first fresh fix replaces it.
+        if (_fix.value != null && SystemClock.elapsedRealtime() - fixElapsedMs > AppConfig.LOCATION_LAST_FIX_MAX_AGE_MS) {
+            _fix.value = null
+        }
         client.requestLocationUpdates(request, callback, Looper.getMainLooper())
         client.lastLocation.addOnSuccessListener { loc ->
             // A cached location is only a start; an old one may be far from the present position.
             val ageMs = (SystemClock.elapsedRealtimeNanos() - (loc?.elapsedRealtimeNanos ?: 0L)) / 1_000_000L
             if (loc != null && _fix.value == null && ageMs <= AppConfig.LOCATION_LAST_FIX_MAX_AGE_MS) {
-                _fix.value = toFix(loc, FixSource.SYSTEM)
+                publishFix(loc, FixSource.SYSTEM)
             }
         }
         // One fresh high-accuracy request at once: the first fix does not wait for the regular interval.
@@ -165,7 +178,12 @@ class LocationProvider(context: Context) {
         val gps = latestGps
         val choice = FixSelection.choose(asSource(system), asSource(gps)) ?: return
         val chosen = (if (choice == FixSource.GPS) gps else system) ?: return
-        _fix.value = toFix(chosen, choice)
+        publishFix(chosen, choice)
+    }
+
+    private fun publishFix(loc: Location, source: FixSource) {
+        _fix.value = toFix(loc, source)
+        fixElapsedMs = loc.elapsedRealtimeNanos / 1_000_000L
     }
 
     private fun accuracyOf(loc: Location): Float =
@@ -182,11 +200,18 @@ class LocationProvider(context: Context) {
             else -> null
         }
         val reported = accuracyOf(loc)
-        // The filter always sees the fix, so its state is current when a poor fix needs it.
-        val filtered = filter.update(
+        // The filter always sees the fix, so its state is current when a poor fix needs it. Each measurement counts
+        // once: publish() runs again for the same Location whenever the other source reports, and feeding it again
+        // would make the filter more certain than the measurements allow.
+        val seen = loc === fedLast || loc === fedPrevious
+        val filtered = (if (seen) lastFiltered else null) ?: filter.update(
             loc.elapsedRealtimeNanos / 1_000_000L, loc.latitude, loc.longitude, reported.toDouble(),
             if (loc.hasSpeed()) loc.speed.toDouble() else null
-        )
+        ).also {
+            fedPrevious = fedLast
+            fedLast = loc
+            lastFiltered = it
+        }
         val trusted = reported <= AppConfig.FIX_TRUST_RAW_ACCURACY_M
         return ObserverFix(
             if (trusted) loc.latitude else filtered.lat,

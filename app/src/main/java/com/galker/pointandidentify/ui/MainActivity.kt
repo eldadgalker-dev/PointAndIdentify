@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.26
+// Version 1.27
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.geo.GeoMath
@@ -140,7 +140,12 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         val ok = result[Manifest.permission.CAMERA] == true && result[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (ok) startSystems() else showPermissionDialog()
+        if (ok) {
+            startSystems()
+            // The permission dialog only pauses the Activity, so onStart does not run again after it.
+            checkLocationSettings()
+            vm.startStartupChecks()
+        } else showPermissionDialog()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -219,8 +224,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
+    // Sensors and location follow onStart / onStop, like the camera (bound to the lifecycle): in split screen or under a
+    // dialog the Activity is paused but visible, and the preview must not run with a frozen overlay.
+    override fun onStart() {
+        super.onStart()
         vm.startUpdateCheckIfDue() // every launch (and a return after a while) checks for a newer version, even before permissions are granted
         vm.orientationProvider.start()
         vm.pressureProvider.start()
@@ -232,8 +239,8 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onPause() {
-        super.onPause()
+    override fun onStop() {
+        super.onStop()
         vm.onPaused()
         vm.orientationProvider.stop()
         vm.pressureProvider.stop()
@@ -729,11 +736,13 @@ class MainActivity : AppCompatActivity() {
             try {
                 val provider = future.get() // inside the try: a failing camera service must not crash the app
                 val preview = Preview.Builder().build().also { it.setSurfaceProvider(binding.viewFinder.surfaceProvider) }
-                imageCapture = ImageCapture.Builder()
+                val capture = ImageCapture.Builder()
                     .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                     .build()
+                imageCapture = null // until the new use case is bound: a capture on an unbound one fails
                 provider.unbindAll()
-                val bound = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                val bound = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview, capture)
+                imageCapture = capture
                 camera = bound
                 horizontalFovDeg(bound)?.let { sensorHfovDeg = it }
                 applyVisibleHfov()
@@ -793,7 +802,7 @@ class MainActivity : AppCompatActivity() {
             destDistanceM = t?.distanceM
         )
 
-        ic.takePicture(cameraExecutor, object : ImageCapture.OnImageCapturedCallback() {
+        val callback = object : ImageCapture.OnImageCapturedCallback() {
             override fun onCaptureSuccess(image: ImageProxy) {
                 // ATOMIC: the body starts even when the Activity is being destroyed, so the image is always closed below.
                 lifecycleScope.launch(start = CoroutineStart.ATOMIC) {
@@ -817,7 +826,14 @@ class MainActivity : AppCompatActivity() {
                 Log.e(TAG, "Capture failed", exception)
                 runOnUiThread { toast(getString(R.string.capture_error)) }
             }
-        })
+        }
+        try {
+            ic.takePicture(cameraExecutor, callback)
+        } catch (e: Exception) {
+            // The use case was unbound meanwhile, or the executor is already shut down (Activity being destroyed).
+            Log.e(TAG, "Capture could not start", e)
+            toast(getString(R.string.capture_error))
+        }
     }
 
     // ===== Rendering =====

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -37,6 +37,8 @@ class BaroGpsFusion {
     /** One GPS fix together with the pressure measured at the same time. */
     @Synchronized
     fun update(nowMs: Long, gpsAltM: Double, gpsSigmaM: Double, pressureHpa: Double) {
+        // A broken sample (NaN, or a pressure of zero or below from a faulty sensor) would poison the offset for good.
+        if (!gpsAltM.isFinite() || !gpsSigmaM.isFinite() || !validPressure(pressureHpa)) return
         val z = gpsAltM - pressureAltitudeM(pressureHpa)
         val r = gpsSigmaM.coerceIn(AppConfig.ALT_GPS_SIGMA_MIN_M, AppConfig.ALT_GPS_SIGMA_MAX_M).pow(2)
         if (!initialized) {
@@ -61,12 +63,14 @@ class BaroGpsFusion {
     /** Current altitude for the present pressure; null before the first GPS + pressure pair. */
     @Synchronized
     fun estimate(pressureHpa: Double): AltitudeEstimate? {
-        if (!initialized) return null
+        if (!initialized || !validPressure(pressureHpa)) return null
         val sigma = sqrt(maxOf(varianceM2, AppConfig.ALT_MIN_SIGMA_M.pow(2)) + AppConfig.ALT_BARO_NOISE_M.pow(2))
         return AltitudeEstimate(pressureAltitudeM(pressureHpa) + offsetM, sigma)
     }
 
     companion object {
+        private fun validPressure(pressureHpa: Double) = pressureHpa.isFinite() && pressureHpa > 0.0
+
         /** International barometric formula against the standard sea-level pressure; relative changes are what matters. */
         fun pressureAltitudeM(pressureHpa: Double): Double =
             44330.0 * (1.0 - (pressureHpa / AppConfig.SEA_LEVEL_PRESSURE_HPA).pow(1.0 / 5.255))

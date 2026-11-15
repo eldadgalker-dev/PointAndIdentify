@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -26,6 +26,20 @@ object AimRay {
      * between two samples, so the result is finer than the DEM_SAMPLE_SPACING_M step.
      */
     fun groundDistanceM(
+        terrain: TerrainSource,
+        lat: Double,
+        lon: Double,
+        eyeAltM: Double,
+        azimuthDeg: Double,
+        elevationDeg: Double
+    ): Double? = castM(terrain, lat, lon, eyeAltM, azimuthDeg, elevationDeg)?.takeIf { it.isFinite() }
+
+    /**
+     * Like groundDistanceM, but tells the two reasons for "no ground" apart: BEYOND_RANGE when the camera points down and
+     * the terrain is known all the way, yet the ray meets no ground within AIM_RAY_MAX_M (the aimed point is farther than
+     * that, not under the observer); null when the camera does not point down or terrain data is missing on the way.
+     */
+    fun castM(
         terrain: TerrainSource,
         lat: Double,
         lon: Double,
@@ -58,8 +72,11 @@ object AimRay {
             previousGap = gap
             x += AppConfig.DEM_SAMPLE_SPACING_M
         }
-        return null
+        return BEYOND_RANGE
     }
+
+    /** Result of castM for a ray that points down over known terrain and meets no ground within AIM_RAY_MAX_M. */
+    const val BEYOND_RANGE = Double.POSITIVE_INFINITY
 
     private const val MIN_DOWN_DEG = 0.05 // deg, a camera this close to the horizon is treated as not pointing down
 }

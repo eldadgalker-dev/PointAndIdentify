@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -47,25 +47,30 @@ class AdaptiveAngleSmoother(private val circular: Boolean) {
  * the magnetic rotation vector is absolute (true north) but noisy and easily disturbed by metal. The result is the
  * gyroscope azimuth plus a slowly adapting offset towards the magnetic azimuth (time constant HEADING_MAG_TAU_S). The
  * offset only follows the magnetic reading while it is trusted (field strength in the Earth range, sensor calibrated).
+ * The first reading sets the offset at once, so that a heading exists; when that reading was not trusted, the first
+ * trusted one sets it again at once instead of creeping towards it over the time constant.
  */
 class HeadingFusion {
 
     private var offsetSin = 0.0
     private var offsetCos = 1.0
     private var initialized = false
+    private var trustedSeen = false // the offset was set at least once from a trusted reading
 
     fun reset() {
         initialized = false
+        trustedSeen = false
     }
 
     /** gameAzDeg: gyroscope azimuth; magTrueAzDeg: magnetic azimuth in true north (null before the first sample). */
     fun fuse(gameAzDeg: Double, magTrueAzDeg: Double?, magTrusted: Boolean, dtSeconds: Double): Double {
         if (magTrueAzDeg != null) {
             val diff = Math.toRadians(magTrueAzDeg - gameAzDeg)
-            if (!initialized) {
+            if (!initialized || (magTrusted && !trustedSeen)) {
                 offsetSin = sin(diff)
                 offsetCos = cos(diff)
                 initialized = true
+                trustedSeen = magTrusted
             } else if (magTrusted) {
                 val alpha = 1.0 - exp(-dtSeconds.coerceIn(0.0, MAX_DT_S) / AppConfig.HEADING_MAG_TAU_S)
                 offsetSin += alpha * (sin(diff) - offsetSin)

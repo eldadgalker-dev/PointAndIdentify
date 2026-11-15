@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.domain.AdaptiveAngleSmoother
@@ -71,6 +71,17 @@ class SmoothingTest {
         var h = 0.0
         for (i in 0 until 1000) h = f.fuse(10.0, 160.0, false, 0.02) // magnet nearby: reading ignored
         assertEquals(100.0, h, 0.5)
+    }
+
+    @Test
+    fun anUntrustedFirstReadingIsReplacedAtOnceByTheFirstTrustedOne() {
+        val f = HeadingFusion()
+        // Start next to a magnet: a heading is shown, from the only reading there is.
+        assertEquals(160.0, f.fuse(10.0, 160.0, false, 0.0), 0.5)
+        // The first trusted reading sets the offset at once, not over the time constant.
+        assertEquals(100.0, f.fuse(10.0, 100.0, true, 0.02), 0.5)
+        // From then on a different trusted reading moves it only slowly.
+        assertEquals(100.0, f.fuse(10.0, 130.0, true, 0.02), 1.0)
     }
 
     @Test

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.0
+// Version 1.1
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.domain.AimRay
@@ -44,6 +44,16 @@ class AimRayTest {
         val flat = terrain { 0.0 }
         assertNull(AimRay.groundDistanceM(flat, lat0, lon0, 100.0, 90.0, 5.0))
         assertNull(AimRay.groundDistanceM(flat, lat0, lon0, 100.0, 90.0, -0.3)) // meets the ground beyond 5 km
+    }
+
+    @Test
+    fun castTellsARayBeyondTheRangeFromAnUnknownGround() {
+        val flat = terrain { 0.0 }
+        // Pointing slightly down over known flat ground: the ground is farther than the range, not unknown.
+        assertEquals(AimRay.BEYOND_RANGE, AimRay.castM(flat, lat0, lon0, 100.0, 90.0, -0.3)!!, 0.0)
+        assertEquals(250.0, AimRay.castM(flat, lat0, lon0, 100.0, 90.0, -21.8)!!, 5.0)
+        assertNull(AimRay.castM(flat, lat0, lon0, 100.0, 90.0, 5.0)) // not pointing down
+        assertNull(AimRay.castM(TerrainSource { _, _ -> null }, lat0, lon0, 100.0, 90.0, -20.0)) // no terrain data
     }
 
     @Test

@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.25
+// Version 1.26
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -155,7 +155,8 @@ object AppConfig {
     // ===== Parameters: network =====
     const val HTTP_CONNECT_TIMEOUT_MS = 10_000
     const val HTTP_READ_TIMEOUT_MS = 30_000
-    const val HTTP_MAX_BYTES = 120L * 1024 * 1024 // hard cap on any single download
+    const val HTTP_MAX_BYTES = 120L * 1024 * 1024 // hard cap on any single download streamed to a file (the APK)
+    const val HTTP_MAX_MEMORY_BYTES = 16L * 1024 * 1024 // cap on a response held in memory (manifest, targets, one tile); targets.json is about 1.2 MB
 
     // ===== Parameters: photo =====
     const val JPEG_QUALITY = 95
@@ -196,6 +197,7 @@ object AppConfig {
         require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
         require(SELECTION_HOLD_MS >= 0 && SELECTION_LOST_MS >= 0 && SELECTION_SWITCH_RATIO in 0.0..1.0) { "Invalid selection stability parameters" }
         require(CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city switch margin" }
+        require(HTTP_MAX_MEMORY_BYTES in 1..HTTP_MAX_BYTES) { "HTTP_MAX_MEMORY_BYTES must be positive and not above HTTP_MAX_BYTES" }
         require(CITY_SEARCH_RADIUS_M > 0) { "Invalid current-city parameters" }
         require(FLAT_BELOW_DEG < RAISED_ABOVE_DEG) { "FLAT_BELOW_DEG must be below RAISED_ABOVE_DEG (hysteresis)" }
         require(FIND_MAX_RESULTS >= 1 && GEOCODER_MAX_RESULTS >= 1) { "Invalid find result limits" }
