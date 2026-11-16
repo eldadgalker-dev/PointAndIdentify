@@ -2,6 +2,8 @@
 
 # PointAndIdentify
 
+גרסה אחרונה: [![גרסה אחרונה](https://img.shields.io/github/v/release/eldadgalker-dev/PointAndIdentify?label=)](https://github.com/eldadgalker-dev/PointAndIdentify/releases/latest)
+
 אפליקציית Android לזיהוי היישוב שאליו מכוונת המצלמה, בדיקת נראות טופוגרפית מול מודל גבהים (DEM), ותיעוד בתמונה עם שכבת מידע ו-EXIF.
 
 ## 1. יכולות

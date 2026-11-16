@@ -9,6 +9,7 @@
     <string name="target_visible_details">Range: %1$.1f km\nAzimuth: %2$d°</string>
     <string name="photo_target_prefix">Target: %1$s</string>
     <string name="photo_footer">%1$s\nPointAndIdentify %2$s</string>
+    <string name="live_footer">PointAndIdentify %1$s</string>
 
     <string name="info_observer_pos">Observer position: %1$s</string>
     <string name="info_observer_acc">Position accuracy: %1$s</string>

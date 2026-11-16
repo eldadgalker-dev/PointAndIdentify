@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.27
+// Version 1.28
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.geo.GeoMath
@@ -839,7 +839,9 @@ class MainActivity : AppCompatActivity() {
     // ===== Rendering =====
 
     private fun render(state: UiState) {
-        binding.overlayView.content = buildLiveContent(state)
+        // The installed version is always on the screen (last line of the data block), as it is in every photo.
+        binding.overlayView.content =
+            buildLiveContent(state).copy(footer = getString(R.string.live_footer, updater().installedVersionName))
 
         val status = StringBuilder(
             getString(R.string.data_status, state.tiles.available, state.tiles.required, state.targetsCount)

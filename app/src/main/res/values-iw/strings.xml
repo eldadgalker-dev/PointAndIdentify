@@ -9,6 +9,7 @@
     <string name="target_visible_details">טווח: %1$.1f ק״מ\nאזימוט: %2$d°</string>
     <string name="photo_target_prefix">מטרה: %1$s</string>
     <string name="photo_footer">תאריך ושעה: %1$s\nאפליקציית PointAndIdentify גרסה %2$s</string>
+    <string name="live_footer">אפליקציית PointAndIdentify גרסה %1$s</string>
 
     <string name="info_observer_pos">מיקום צופה: %1$s</string>
     <string name="info_observer_acc">דיוק מיקום: %1$s</string>
