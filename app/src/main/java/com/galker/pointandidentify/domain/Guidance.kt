@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.domain
 
 import com.galker.pointandidentify.config.AppConfig
@@ -29,8 +29,10 @@ object PhonePose {
 /**
  * When the current-city display replaces the normal target selection:
  *   - the camera points from CITY_MODE_BELOW_DEG (about -30 deg) down to straight down (-90 deg), or
- *   - the camera axis, ray-cast against the terrain, meets the ground near the observer (aimNear), at any angle.
- * Between the horizon and -30 deg the normal selection works, so a target far below a mountain is still found.
+ *   - the camera points clearly down (AimNear: below about -15 deg) and its axis, ray-cast against the terrain, meets
+ *     the ground near the observer.
+ * Nearer to the horizon the normal selection works, also from a high floor or a hilltop, where a ray a few degrees
+ * below the horizon still meets the ground within the radius.
  */
 object CityMode {
 
@@ -40,6 +42,20 @@ object CityMode {
     fun yieldsToTarget(best: TargetEvaluation?, aimDistanceM: Double?): Boolean =
         best != null && best.visibility == Visibility.VISIBLE &&
             (aimDistanceM == null || best.distanceM <= aimDistanceM + AppConfig.CITY_YIELD_MARGIN_M)
+}
+
+/**
+ * The camera axis meets the ground near the observer while the camera points clearly down. Two hysteresis bands: the
+ * distance (CITY_AIM_RADIUS_M / CITY_AIM_EXIT_M) and the camera elevation (CITY_AIM_BELOW_DEG / CITY_AIM_EXIT_DEG).
+ */
+object AimNear {
+
+    fun isNear(previously: Boolean, aimDistanceM: Double?, cameraElevationDeg: Double): Boolean = when {
+        aimDistanceM == null -> false
+        aimDistanceM > AppConfig.CITY_AIM_EXIT_M || cameraElevationDeg > AppConfig.CITY_AIM_EXIT_DEG -> false
+        aimDistanceM <= AppConfig.CITY_AIM_RADIUS_M && cameraElevationDeg < AppConfig.CITY_AIM_BELOW_DEG -> true
+        else -> previously
+    }
 }
 
 /** Camera pointing steeply down, from about -30 deg to straight down (the ground below, or a phone lying on a table). */

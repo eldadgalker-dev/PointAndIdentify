@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.26
+// Version 1.27
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -96,8 +96,12 @@ object AppConfig {
     const val CITY_YIELD_MARGIN_M = 200.0     // m, a visible target in the crosshair up to this much beyond the aimed ground point beats the current-city display
     const val AIM_MIN_EYE_ABOVE_GROUND_M = 0.5 // m, the aim ray starts at least this high above the terrain under the observer
     const val AIM_RAY_MAX_M = 5_000.0         // m, longest distance at which the camera axis is intersected with the terrain
-    const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle (any angle)
+    const val CITY_AIM_RADIUS_M = 1_500.0     // m, the ray meets the ground within this radius: current-location circle
     const val CITY_AIM_EXIT_M = 1_800.0       // m, ... and the mode ends only beyond this radius (hysteresis)
+    // Field finding 2026-11-16 (floor 25, 96 m above the ground): at -4 deg, almost at the horizon, the ray met the ground
+    // 1.2 km away and the current place was shown. The circle is therefore offered only to a camera pointing clearly down.
+    const val CITY_AIM_BELOW_DEG = -15.0      // deg, the current-location circle needs a camera elevation below this
+    const val CITY_AIM_EXIT_DEG = -12.0       // deg, ... and ends above this (hysteresis)
     const val CITY_SEARCH_RADIUS_M = 15_000.0 // m, the current city is the nearest settlement within this range
     const val CITY_SWITCH_MARGIN_M = 150.0    // m, another settlement replaces the current one only when this much nearer to the aimed ground point
 
@@ -194,6 +198,9 @@ object AppConfig {
             "Invalid current-location circle radii"
         }
         require(CITY_YIELD_MARGIN_M >= 0 && CITY_MODE_EXIT_DEG < 0) { "Invalid city-mode parameters" }
+        require(CITY_MODE_EXIT_DEG <= CITY_AIM_BELOW_DEG && CITY_AIM_BELOW_DEG < CITY_AIM_EXIT_DEG && CITY_AIM_EXIT_DEG < 0) {
+            "Invalid current-location circle angles"
+        }
         require(GEOID_FALLBACK_SIGMA_M >= 0 && PRIVATE_POINTS_MAX >= 1) { "Invalid altitude / private point parameters" }
         require(SELECTION_HOLD_MS >= 0 && SELECTION_LOST_MS >= 0 && SELECTION_SWITCH_RATIO in 0.0..1.0) { "Invalid selection stability parameters" }
         require(CITY_SWITCH_MARGIN_M >= 0) { "Invalid current-city switch margin" }

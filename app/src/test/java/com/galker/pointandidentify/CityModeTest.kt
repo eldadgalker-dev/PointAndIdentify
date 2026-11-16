@@ -1,10 +1,11 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.1
+// Version 1.2
 package com.galker.pointandidentify
 
 import com.galker.pointandidentify.domain.LookingDown
+import com.galker.pointandidentify.domain.AimNear
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.domain.CityMode
 import com.galker.pointandidentify.domain.TargetEvaluation
@@ -21,6 +22,21 @@ class CityModeTest {
         distanceM = distanceM,
         visibility = visibility
     )
+
+    @Test
+    fun groundMetNearTheObserverCountsOnlyForACameraPointingClearlyDown() {
+        // Field finding 2026-11-16: floor 25 (96 m up), -4.7 deg -> ground at 1.2 km; almost the horizon, no current place.
+        assertFalse(AimNear.isNear(false, 1_170.0, -4.7))
+        assertFalse(AimNear.isNear(true, 1_170.0, -4.7))
+        assertTrue(AimNear.isNear(false, 250.0, -21.8))
+        // Hysteresis in the angle (-15 in, -12 out) and in the distance (1500 in, 1800 out).
+        assertFalse(AimNear.isNear(false, 400.0, -13.5))
+        assertTrue(AimNear.isNear(true, 400.0, -13.5))
+        assertTrue(AimNear.isNear(true, 1_700.0, -20.0))
+        assertFalse(AimNear.isNear(false, 1_700.0, -20.0))
+        assertFalse(AimNear.isNear(true, 1_900.0, -20.0))
+        assertFalse(AimNear.isNear(true, null, -20.0))
+    }
 
     @Test
     fun groundMetNearTheObserverShowsTheCurrentPlace() {

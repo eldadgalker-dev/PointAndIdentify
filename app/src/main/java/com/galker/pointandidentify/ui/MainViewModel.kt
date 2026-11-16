@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.26
+// Version 1.27
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.domain.PointingUncertainty
@@ -15,6 +15,7 @@ import com.galker.pointandidentify.PointApp
 import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.data.dem.DemTileRepository
+import com.galker.pointandidentify.domain.AimNear
 import com.galker.pointandidentify.domain.AimRay
 import com.galker.pointandidentify.domain.AltitudeEstimate
 import com.galker.pointandidentify.domain.BaroGpsFusion
@@ -136,7 +137,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var raised = true
 
     // Current city: the nearest settlement (with hysteresis, so GPS jitter does not make it jump); shown when the camera points down.
-    private class CityData(val settlements: List<TargetEvaluation>, val here: TargetEvaluation?)
+    private class CityData(val settlements: List<TargetEvaluation>, val here: TargetEvaluation?, val hereRadiusM: Double = 0.0)
 
     // settlements within the search radius, and the private point (for example Home) the observer stands at, if any
     private val cityEval = MutableStateFlow(CityData(emptyList(), null))
@@ -266,17 +267,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     // ray meets no ground, e.g. straight down without terrain data), never the nearest in azimuth alone.
                     // A camera that does not point down aims at no ground: the held place is kept and not re-chosen, so
                     // raising and lowering the phone does not pull the choice to the place nearest to the observer.
-                    // A saved place the observer stands at (Home) is the current place, wherever the camera points.
+                    // A saved place the observer stands at (Home) is a point, not the name of the town: it is the current
+                    // place only while the aimed ground point lies within its radius; farther away the settlement is shown.
                     val city = tick.city.here
+                        ?.takeIf { CityPicker.distanceToAimM(it, o.trueAzimuthDeg, cityAim ?: 0.0) <= tick.city.hereRadiusM }
                         ?: if (AimRay.pointsDown(o.cameraElevationDeg)) {
                             CityPicker.pick(settlementsFrom(fixNow, tick.city), o.trueAzimuthDeg, cityAim, cityHeld).also { cityHeld = it }
                         } else cityHeld
-                    aimNear = when {
-                        aim == null -> false
-                        aim <= AppConfig.CITY_AIM_RADIUS_M -> true
-                        aim > AppConfig.CITY_AIM_EXIT_M -> false
-                        else -> aimNear
-                    }
+                    aimNear = AimNear.isNear(aimNear, aim, o.cameraElevationDeg)
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val findE = tick.find?.let { if (reangle && eyeTick != null) it.reangled(eyeTick.bestM) else it }
                     val find = findE?.let { e ->
@@ -568,7 +566,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             .filter { it.second <= hereRadiusM }
             .minByOrNull { it.second }
             ?.let { evaluatePlace(it.first) }
-        return CityData(settlements, here)
+        return CityData(settlements, here, hereRadiusM)
     }
 
     /**
