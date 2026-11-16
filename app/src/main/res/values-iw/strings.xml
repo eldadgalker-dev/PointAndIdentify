@@ -91,6 +91,7 @@
     <string name="observer_height_saved">הגובה נשמר</string>
     <string name="city_current">העיר הנוכחית</string>
     <string name="city_current_circle">העיר הנוכחית | מעגל מיקום Ø %1$s</string>
+    <string name="city_aimed">היישוב שבכיוון | קרקע במרחק %1$s</string>
     <string name="btn_share">העתק / שלח</string>
     <string name="points_action_share">העתק / שלח</string>
     <string name="share_chooser">שלח במייל או באפליקציה אחרת</string>

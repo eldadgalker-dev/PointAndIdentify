@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.28
+// Version 1.29
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.geo.GeoMath
@@ -81,6 +81,7 @@ import com.galker.pointandidentify.domain.CompassVerdict
 import com.galker.pointandidentify.domain.TargetKind
 import com.galker.pointandidentify.domain.Visibility
 import com.galker.pointandidentify.update.RemoteVersion
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -203,6 +204,13 @@ class MainActivity : AppCompatActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { vm.ui.collect { render(it) } }
                 launch { vm.update.collect { renderUpdate(it) } }
+                // A version published while the app is on the screen is noticed without leaving the app.
+                launch {
+                    while (true) {
+                        delay(AppConfig.UPDATE_RETRY_INTERVAL_MS)
+                        vm.startUpdateCheckIfDue()
+                    }
+                }
             }
         }
     }
@@ -1068,16 +1076,16 @@ class MainActivity : AppCompatActivity() {
             // The circle diameter is twice the distance at which the camera axis meets the ground: the higher above the
             // aimed ground, the larger the circle; lowering the camera shrinks it.
             val aim = state.aimDistanceM
-            val secondary = if (aim != null) {
-                val diameter = 2.0 * aim
-                val text = if (diameter >= 1000.0) {
-                    fmt("%.1f", diameter / 1000.0) + " " + getString(R.string.unit_km)
-                } else {
-                    getString(R.string.info_meters, diameter.roundToInt())
-                }
-                getString(R.string.city_current_circle, text)
+            fun lengthText(m: Double) = if (m >= 1000.0) {
+                fmt("%.1f", m / 1000.0) + " " + getString(R.string.unit_km)
             } else {
-                getString(R.string.city_current)
+                getString(R.string.info_meters, m.roundToInt())
+            }
+            // The aimed ground lies in another place than the one the observer is in: named as aimed at, with the range.
+            val secondary = when {
+                aim != null && !state.cityHere -> getString(R.string.city_aimed, lengthText(aim))
+                aim != null -> getString(R.string.city_current_circle, lengthText(2.0 * aim))
+                else -> getString(R.string.city_current)
             }
             return OverlayContent(state.target.target.name, secondary, visible = true)
         }
@@ -1213,11 +1221,11 @@ class MainActivity : AppCompatActivity() {
                     }
                     .setNegativeButton(R.string.dialog_no) { _, _ ->
                         lastUpdateDialogFor = null
-                        vm.resetUpdateState()
+                        vm.declineUpdate(state.remote)
                     }
                     .setOnCancelListener {
                         lastUpdateDialogFor = null
-                        vm.resetUpdateState()
+                        vm.declineUpdate(state.remote)
                     }
                     .show()
             }

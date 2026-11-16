@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.27
+// Version 1.28
 package com.galker.pointandidentify.ui
 
 import com.galker.pointandidentify.domain.PointingUncertainty
@@ -26,6 +26,7 @@ import com.galker.pointandidentify.domain.Candidate
 import com.galker.pointandidentify.domain.CityMode
 import com.galker.pointandidentify.domain.CityPicker
 import com.galker.pointandidentify.domain.SelectionStabilizer
+import com.galker.pointandidentify.domain.SettlementArea
 import com.galker.pointandidentify.domain.CompassCheck
 import com.galker.pointandidentify.domain.CompassReport
 import com.galker.pointandidentify.domain.CompassVerdict
@@ -88,6 +89,7 @@ data class UiState(
     val sensorSigmaM: Double? = null,   // its standard deviation
     val headingSigmaDeg: Double? = null, // heading error used for the pointing uncertainty
     val cityMode: Boolean = false, // camera pointing down: the target is the current city, whatever the azimuth
+    val cityHere: Boolean = true,  // in city mode: the place shown is the one the observer is in (false: a neighbouring place aimed at)
     val aimDistanceM: Double? = null, // where the camera axis meets the ground = radius of the current-location circle
     val raised: Boolean = true, // phone raised (aiming) or flat; positions of targets are shown only when raised
     val find: FindState? = null,
@@ -149,6 +151,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val selectionStabilizer = SelectionStabilizer()
     private var lookingDown = false
     private var aimNear = false // the camera axis meets the ground within the current-location circle (with hysteresis)
+    // The settlement outline the observer stands in, found once per fix.
+    private var hereAreaFix: ObserverFix? = null
+    private var hereArea: SettlementArea? = null
 
     /** One sensor/data snapshot for the throttled UI update. */
     private class Tick(
@@ -263,17 +268,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             ?.let { AimRay.flatDistanceM(eyeNow - it, o.cameraElevationDeg) }
                         else -> null
                     }
-                    // The current place = the settlement nearest to the aimed ground point (under the observer when the
-                    // ray meets no ground, e.g. straight down without terrain data), never the nearest in azimuth alone.
+                    // The current place = the settlement whose outline contains the aimed ground point (the point under the
+                    // observer when the ray meets no ground, e.g. straight down without terrain data). Only a point in no
+                    // mapped outline falls back to the settlement whose centre is nearest to it (CityPicker).
+                    // Field finding 2026-11-16: by centres alone, a point in Tel Aviv 600 m from the Givatayim border was
+                    // named Givatayim on one shot and Tel Aviv on the next.
                     // A camera that does not point down aims at no ground: the held place is kept and not re-chosen, so
                     // raising and lowering the phone does not pull the choice to the place nearest to the observer.
                     // A saved place the observer stands at (Home) is a point, not the name of the town: it is the current
                     // place only while the aimed ground point lies within its radius; farther away the settlement is shown.
-                    val city = tick.city.here
+                    val pointsDown = AimRay.pointsDown(o.cameraElevationDeg)
+                    val aimArea = if (fixNow != null && pointsDown) {
+                        val p = GeoMath.destination(fixNow.lat, fixNow.lon, o.trueAzimuthDeg, cityAim ?: 0.0)
+                        targets.areas.find(p.first, p.second)
+                    } else null
+                    if (fixNow !== hereAreaFix) {
+                        hereAreaFix = fixNow
+                        hereArea = fixNow?.let { targets.areas.find(it.lat, it.lon) }
+                    }
+                    val privateHere = tick.city.here
                         ?.takeIf { CityPicker.distanceToAimM(it, o.trueAzimuthDeg, cityAim ?: 0.0) <= tick.city.hereRadiusM }
-                        ?: if (AimRay.pointsDown(o.cameraElevationDeg)) {
-                            CityPicker.pick(settlementsFrom(fixNow, tick.city), o.trueAzimuthDeg, cityAim, cityHeld).also { cityHeld = it }
+                    val city = privateHere
+                        ?: if (pointsDown) {
+                            val places = settlementsFrom(fixNow, tick.city)
+                            (aimArea?.let { placeOf(it, places, fixNow) }
+                                ?: CityPicker.pick(places, o.trueAzimuthDeg, cityAim, cityHeld)).also { cityHeld = it }
                         } else cityHeld
+                    // An aimed place that is not the one the observer stands in is named as aimed at, not as "current".
+                    // An observer in no mapped outline has no known place to differ from: the wording stays "current".
+                    val here = hereArea
+                    val cityHere = privateHere != null || aimArea == null || here == null || aimArea.name == here.name
                     aimNear = AimNear.isNear(aimNear, aim, o.cameraElevationDeg)
                     val circleDeg = CrosshairWindow.halfAngleDeg(effectiveHfov, z)
                     val findE = tick.find?.let { if (reangle && eyeTick != null) it.reangled(eyeTick.bestM) else it }
@@ -295,6 +319,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _ui.value = _ui.value.copy(
                         raised = raised,
                         cityMode = cityMode,
+                        cityHere = cityHere,
                         aimDistanceM = aim,
                         find = find,
                         azimuthDeg = o.trueAzimuthDeg,
@@ -336,8 +361,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // ===== Start-up checks =====
 
     /**
-     * Automatic update check: on every launch, again when the user returns after UPDATE_CHECK_INTERVAL_MS,
-     * and after UPDATE_RETRY_INTERVAL_MS when the last check failed. Needs no permissions; silent unless an update exists.
+     * Automatic update check: on every launch, again UPDATE_CHECK_INTERVAL_MS after the last one (the Activity calls
+     * this on every return to the app and periodically while it is on the screen), and after UPDATE_RETRY_INTERVAL_MS
+     * when the last check failed. Needs no permissions; silent unless an update exists.
      */
     fun startUpdateCheckIfDue() {
         if (UpdateSchedule.isDue(lastUpdateAttemptMs, lastUpdateSucceeded, SystemClock.elapsedRealtime())) {
@@ -423,9 +449,28 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         findEval.value = null
         cityEval.value = CityData(emptyList(), null)
         cityHeld = null
+        hereAreaFix = null
+        hereArea = null
         _ui.value = _ui.value.copy(
             fix = null, observerEyeAltM = null, sensorHeightM = null, sensorSigmaM = null,
             target = null, candidates = emptyList(), cityMode = false, aimDistanceM = null, find = null
+        )
+    }
+
+    /**
+     * The settlement an outline belongs to, as evaluated in the last pass (same name, the nearest to the outline's own
+     * point); a settlement whose centre is beyond the search radius is evaluated here by bearing and range alone.
+     */
+    private fun placeOf(area: SettlementArea, places: List<TargetEvaluation>, fix: ObserverFix?): TargetEvaluation? {
+        val known = places.filter { it.target.name == area.name }
+            .minByOrNull { GeoMath.distanceM(area.latitude, area.longitude, it.target.latitude, it.target.longitude) }
+        if (known != null || fix == null) return known
+        val held = cityHeld
+        if (held != null && held.target.name == area.name && held.target.latitude == area.latitude) return held
+        return TargetEvaluation(
+            TargetEntity(id = 0, name = area.name, kind = TargetKind.SETTLEMENT.code, latitude = area.latitude, longitude = area.longitude, altitudeM = null, heightM = null),
+            GeoMath.bearingDeg(fix.lat, fix.lon, area.latitude, area.longitude),
+            GeoMath.distanceM(fix.lat, fix.lon, area.latitude, area.longitude), Visibility.UNKNOWN
         )
     }
 
@@ -587,18 +632,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ===== Self-update =====
 
+    private var updateCheckJob: Job? = null
+    // A version the user declined: the automatic checks stay silent about it until the app is started again.
+    private var declinedUpdate: RemoteVersion? = null
+
+    fun declineUpdate(remote: RemoteVersion) {
+        declinedUpdate = remote
+        resetUpdateState()
+    }
+
     fun checkForUpdate(silent: Boolean = false) {
         val current = _update.value
         // ReadyToInstall is handled by the Activity directly (install retry), never re-checked here.
-        if (current is UpdateState.Checking || current is UpdateState.Downloading) {
+        if (current is UpdateState.Checking || current is UpdateState.Downloading || updateCheckJob?.isActive == true) {
             if (!silent) silentUpdateCheck = false // the user's own check joins a running automatic one and must be heard
             return
         }
         if (current is UpdateState.ReadyToInstall && current.apk.exists()) return
         silentUpdateCheck = silent
+        // A repeated automatic check runs without the "checking" status, so nothing flashes on the live screen.
+        val quiet = silent && lastUpdateAttemptMs != 0L
         lastUpdateAttemptMs = SystemClock.elapsedRealtime()
-        _update.value = UpdateState.Checking
-        viewModelScope.launch {
+        if (!quiet) _update.value = UpdateState.Checking
+        updateCheckJob = viewModelScope.launch {
             val result = try {
                 updater.checkForUpdate()?.let { UpdateState.Available(it) }
                     ?: UpdateState.UpToDate(updater.installedVersionName)
@@ -608,11 +664,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 UpdateState.Failed
             }
             lastUpdateSucceeded = result !is UpdateState.Failed
-            _update.value = result
+            // A download or an install started meanwhile is never replaced by the answer of a quiet check.
+            val busy = _update.value is UpdateState.Downloading || _update.value is UpdateState.ReadyToInstall
+            val declined = silentUpdateCheck && result is UpdateState.Available && result.remote == declinedUpdate
+            if (!(quiet && busy) && !declined) _update.value = result else if (!quiet) resetUpdateState()
         }
     }
 
     fun downloadUpdate(remote: RemoteVersion) {
+        silentUpdateCheck = false // the user asked for this download: its failure must be heard
         if (_update.value is UpdateState.Downloading) return // a second download would delete the first one's partial file
         _update.value = UpdateState.Downloading(0)
         viewModelScope.launch {

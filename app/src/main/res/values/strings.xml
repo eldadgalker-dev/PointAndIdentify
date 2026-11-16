@@ -91,6 +91,7 @@
     <string name="observer_height_saved">Height saved</string>
     <string name="city_current">Current city</string>
     <string name="city_current_circle">Current city | location circle Ø %1$s</string>
+    <string name="city_aimed">Place aimed at | ground at %1$s</string>
     <string name="btn_share">Copy / send</string>
     <string name="points_action_share">Copy / send</string>
     <string name="share_chooser">Send by e-mail or another app</string>

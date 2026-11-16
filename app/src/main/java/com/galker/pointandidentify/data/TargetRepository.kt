@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.6
+// Version 1.7
 package com.galker.pointandidentify.data
 
 import android.content.Context
@@ -10,6 +10,8 @@ import com.galker.pointandidentify.config.AppConfig
 import com.galker.pointandidentify.data.db.TargetDao
 import com.galker.pointandidentify.data.db.TargetEntity
 import com.galker.pointandidentify.data.net.HttpClient
+import com.galker.pointandidentify.domain.SettlementArea
+import com.galker.pointandidentify.domain.SettlementAreas
 import com.galker.pointandidentify.domain.TargetKind
 import com.galker.pointandidentify.geo.GeoMath
 import kotlinx.coroutines.CancellationException
@@ -17,13 +19,17 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 // =============================================================
 // targets.json format (assets seed and data/targets.json in the repository)
 //   { "version": <int>, "items": [ { "name": "...", "kind": "<TargetKind.code>",
 //       "lat": <deg>, "lon": <deg>, "alt": <m MSL | null>, "h": <structure height m | null> } ] }
 //   Missing "kind" (legacy settlements.json) = "settlement".
+//   Optional "areas": [ { "name", "lat", "lon", "rings": [[lat, lon, lat, lon, ...], ...] } ], the outlines of the
+//   settlements (SettlementArea). They are kept outside the table, in the file AREAS_FILE, and held in memory.
 // =============================================================
 
 /**
@@ -48,15 +54,29 @@ class TargetRepository(
     var totalCount: Int = 0
         private set
 
+    /** Outlines of the settlements; empty until ensureSeeded ran, and when the data holds none. */
+    @Volatile
+    var areas: SettlementAreas = SettlementAreas.EMPTY
+        private set
+
+    private val areasFile = File(appContext.filesDir, AREAS_FILE)
+
     /** Must complete before any query; idempotent. Seeding also resets the stored version. */
     suspend fun ensureSeeded() = mutex.withLock {
         withContext(Dispatchers.IO) {
-            if (dao.count() == 0) {
+            // The outlines file is missing after an update from a version without outlines: taken from the seed too.
+            val empty = dao.count() == 0
+            if (empty || !areasFile.isFile) {
                 val text = appContext.assets.open(SEED_ASSET).bufferedReader(Charsets.UTF_8).use { it.readText() }
-                val (version, items) = parse(text)
-                dao.replaceAll(items)
-                prefs.edit().putInt(KEY_VERSION, version).apply()
+                val parsed = parse(text)
+                if (empty) {
+                    dao.replaceAll(parsed.items)
+                    prefs.edit().putInt(KEY_VERSION, parsed.version).apply()
+                }
+                // A table filled from a newer download keeps its own outlines once they were stored with it.
+                storeAreas(parsed.areasJson)
             }
+            areas = loadAreas()
             totalCount = dao.count()
         }
     }
@@ -72,11 +92,13 @@ class TargetRepository(
                     Log.e(TAG, "Targets hash mismatch")
                     return@withContext false
                 }
-                val (version, items) = parse(String(bytes, Charsets.UTF_8))
-                if (items.isEmpty()) return@withContext false
-                dao.replaceAll(items)
-                prefs.edit().putInt(KEY_VERSION, version).apply()
-                totalCount = items.size
+                val parsed = parse(String(bytes, Charsets.UTF_8))
+                if (parsed.items.isEmpty()) return@withContext false
+                dao.replaceAll(parsed.items)
+                storeAreas(parsed.areasJson)
+                areas = loadAreas()
+                prefs.edit().putInt(KEY_VERSION, parsed.version).apply()
+                totalCount = parsed.items.size
                 true
             } catch (e: CancellationException) {
                 throw e
@@ -153,7 +175,44 @@ class TargetRepository(
             fromDb + own
         }
 
-    private fun parse(text: String): Pair<Int, List<TargetEntity>> {
+    private class Parsed(val version: Int, val items: List<TargetEntity>, val areasJson: String)
+
+    private fun storeAreas(json: String) {
+        try {
+            val tmp = File(areasFile.parentFile, "$AREAS_FILE.tmp")
+            tmp.writeText(json, Charsets.UTF_8)
+            if (!tmp.renameTo(areasFile)) {
+                areasFile.delete()
+                tmp.renameTo(areasFile)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Settlement areas not stored", e)
+        }
+    }
+
+    /** Reads AREAS_FILE; a missing or damaged file gives no outlines (places are then chosen by their centre). */
+    private fun loadAreas(): SettlementAreas = try {
+        if (!areasFile.isFile) SettlementAreas.EMPTY else {
+            val arr = JSONArray(areasFile.readText(Charsets.UTF_8))
+            val list = ArrayList<SettlementArea>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val ringsJson = o.getJSONArray("rings")
+                val rings = ArrayList<DoubleArray>(ringsJson.length())
+                for (r in 0 until ringsJson.length()) {
+                    val flat = ringsJson.getJSONArray(r)
+                    rings.add(DoubleArray(flat.length()) { flat.getDouble(it) })
+                }
+                list.add(SettlementArea(o.getString("name"), o.getDouble("lat"), o.getDouble("lon"), rings))
+            }
+            SettlementAreas(list)
+        }
+    } catch (e: Exception) {
+        Log.w(TAG, "Settlement areas not readable", e)
+        SettlementAreas.EMPTY
+    }
+
+    private fun parse(text: String): Parsed {
         val root = JSONObject(text)
         val arr = root.getJSONArray("items")
         val list = ArrayList<TargetEntity>(arr.length())
@@ -170,7 +229,7 @@ class TargetRepository(
                 )
             )
         }
-        return root.getInt("version") to list
+        return Parsed(root.getInt("version"), list, root.optJSONArray("areas")?.toString() ?: "[]")
     }
 
     private fun optDouble(o: JSONObject, key: String): Double? =
@@ -180,5 +239,6 @@ class TargetRepository(
         private const val TAG = "TargetRepository"
         private const val SEED_ASSET = "targets.json"
         private const val KEY_VERSION = "version"
+        private const val AREAS_FILE = "settlement_areas.json"
     }
 }

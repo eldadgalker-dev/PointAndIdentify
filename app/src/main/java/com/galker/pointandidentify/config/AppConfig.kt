@@ -1,7 +1,7 @@
 // Copyright (c) 1986-2026 Eldad Galker, eldad@galker.com, https://www.galker.com/software/
 // This software is released under the BSD 3-Clause License.
 // See the LICENSE.txt file in the project root for full license information.
-// Version 1.27
+// Version 1.28
 package com.galker.pointandidentify.config
 
 import com.galker.pointandidentify.BuildConfig
@@ -28,7 +28,9 @@ object AppConfig {
     const val USAGE_PING_MAX_FAILURES = 3              // attempts per version before the counter gives up
 
     // ===== Parameters: automatic update check =====
-    const val UPDATE_CHECK_INTERVAL_MS = 10 * 60 * 1000L // ms, repeat the check when the user returns to the app after this long
+    // Field finding 2026-11-16: with 10 minutes, and a check only on a return to the app, a version published while the
+    // app was open was not noticed. The check (one small file) now repeats while the app is on the screen.
+    const val UPDATE_CHECK_INTERVAL_MS = 2 * 60 * 1000L  // ms, repeat the check this long after the last one, also while the app stays open
     const val TILE_RETRY_INTERVAL_MS = 30_000L  // ms, retry the terrain download after an incomplete fetch (offline, failed tiles)
     const val LOCATION_DEFAULT_ACCURACY_M = 50f // m, assumed horizontal accuracy of a fix that reports none
     const val UPDATE_RETRY_INTERVAL_MS = 60 * 1000L      // ms, retry after a failed check (no network)
